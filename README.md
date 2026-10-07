@@ -6,6 +6,8 @@ Better Auth, Drizzle e PostgreSQL. Não depende de serviços da Vercel.
 Para publicar na Cloudflare Workers com banco e fotos no Supabase, siga
 [CLOUDFLARE.md](CLOUDFLARE.md). Desenvolvimento local continua disponível.
 
+URL publicada: https://cardio.renatoqsousam.workers.dev
+
 ## Desenvolvimento local
 
 Requisitos: Linux x64 e Node.js 22 ou superior (ambiente validado com Node 24).

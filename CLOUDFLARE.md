@@ -1,5 +1,19 @@
 # Publicar na Cloudflare Workers com Supabase
 
+URL publicada: https://cardio.renatoqsousam.workers.dev
+
+Projeto Supabase: `qysdfwnbrsllrdjrmwgl` (`cardio-proofs`). As sete tabelas
+estão inicializadas com RLS; o bucket privado `cardio-proofs` aceita imagens
+até 8 MB. A aplicação usa o papel PostgreSQL `cardio_app`, com acesso somente
+às tabelas do app. A senha principal do projeto foi preservada.
+As credenciais estão configuradas como secrets no Worker e não no repositório.
+
+O deploy e os bindings foram confirmados pela API da Cloudflare, e upload,
+download autenticado e bloqueio de acesso público foram verificados no Storage.
+Cadastro/login e conexão PostgreSQL a partir da URL pública ainda precisam
+passar pelo checklist abaixo. Não assuma que o plano gratuito atende ao hashing
+de senhas antes desse teste.
+
 Use **Workers**, não uma publicação estática do Pages. O app possui APIs,
 autenticação, PostgreSQL e fotos privadas. O repositório contém o adaptador
 OpenNext e a configuração Wrangler; o nome do Worker é `cardio`.

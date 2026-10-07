@@ -3,7 +3,9 @@
   "name": "cardio",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-10-07",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "workers_dev": true,
   "assets": {
     "directory": ".open-next/assets",
@@ -11,6 +13,8 @@
   },
   "vars": {
     "STORAGE_BACKEND": "supabase",
-    "SUPABASE_STORAGE_BUCKET": "cardio-proofs"
+    "SUPABASE_STORAGE_BUCKET": "cardio-proofs",
+    "BETTER_AUTH_URL": "https://cardio.renatoqsousam.workers.dev",
+    "SUPABASE_URL": "https://qysdfwnbrsllrdjrmwgl.supabase.co"
   }
 }
