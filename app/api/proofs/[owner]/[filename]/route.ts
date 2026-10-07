@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { sql } from 'drizzle-orm'
-import { auth } from '@/lib/auth'
-import { db } from '@/lib/db'
+import { getAuth } from '@/lib/auth'
+import { getDatabase, withDatabase } from '@/lib/db'
 import { imageType, readProof, validOwner, validFilename } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 
-export async function GET(_request: Request, context: { params: Promise<{ owner: string; filename: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() })
+export const GET = withDatabase(async (_request: Request, context: { params: Promise<{ owner: string; filename: string }> }) => {
+  const { db } = getDatabase()
+  const session = await getAuth().api.getSession({ headers: await headers() })
   if (!session?.user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   const { owner, filename } = await context.params
   if (!validOwner(owner) || !validFilename(filename)) return new NextResponse(null, { status: 404 })
@@ -34,4 +35,4 @@ export async function GET(_request: Request, context: { params: Promise<{ owner:
     'Cache-Control': 'private, no-store',
     'X-Content-Type-Options': 'nosniff',
   } })
-}
+})

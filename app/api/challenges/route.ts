@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm'
-import { auth } from '@/lib/auth'
-import { db } from '@/lib/db'
+import { getAuth } from '@/lib/auth'
+import { getDatabase, withDatabase } from '@/lib/db'
 import { readProof } from '@/lib/storage'
 import { challenge, challengeMember, cardioRecord, user } from '@/lib/db/schema'
 
 const id = () => crypto.randomUUID()
-async function currentUser() { const session = await auth.api.getSession({ headers: await headers() }); if (!session?.user) throw new Error('UNAUTHORIZED'); return session.user }
+async function currentUser() { const session = await getAuth().api.getSession({ headers: await headers() }); if (!session?.user) throw new Error('UNAUTHORIZED'); return session.user }
 
-export async function GET(request: Request) {
+export const GET = withDatabase(async (request: Request) => {
+  const { db } = getDatabase()
   try {
     const me = await currentUser()
     const selectedId = new URL(request.url).searchParams.get('challengeId')
@@ -26,9 +27,10 @@ export async function GET(request: Request) {
     console.error('Failed to load challenges:', error instanceof Error ? error.message : 'Unknown database error')
     return NextResponse.json({ error: 'Não foi possível carregar os desafios' }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(request: Request) {
+export const DELETE = withDatabase(async (request: Request) => {
+  const { db } = getDatabase()
   try {
     const me = await currentUser()
     const challengeId = new URL(request.url).searchParams.get('challengeId')
@@ -43,9 +45,10 @@ export async function DELETE(request: Request) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
     return NextResponse.json({ error: 'Não foi possível excluir o desafio' }, { status: 400 })
   }
-}
+})
 
-export async function POST(request: Request) {
+export const POST = withDatabase(async (request: Request) => {
+  const { db } = getDatabase()
   try { const me = await currentUser(); const body = await request.json()
     if (body.action === 'join') { const found = await db.select().from(challenge).where(eq(challenge.joinCode, String(body.joinCode).trim().toUpperCase())); if (!found[0]) return NextResponse.json({ error: 'Chave não encontrada' }, { status: 404 }); await db.insert(challengeMember).values({ id: id(), challengeId: found[0].id, userId: me.id, joinedAt: new Date() }).onConflictDoNothing(); return NextResponse.json({ challenge: found[0] }) }
     if (body.action === 'create') { const code = Math.random().toString(36).slice(2, 8).toUpperCase(); const created = { id: id(), ownerId: me.id, name: body.name, goalType: body.goalType, goalValue: body.goalValue || null, startDate: body.startDate, endDate: body.endDate, joinCode: code, createdAt: new Date() }; await db.insert(challenge).values(created); await db.insert(challengeMember).values({ id: id(), challengeId: created.id, userId: me.id, joinedAt: new Date() }); return NextResponse.json({ challenge: created }) }
@@ -55,4 +58,4 @@ export async function POST(request: Request) {
       const record = { id: id(), challengeId: null, userId: me.id, recordDate: body.recordDate, minutes: Number(body.minutes), kilometers: String(body.kilometers), pace: body.pace ? String(body.pace) : null, activityType: body.activityType || 'Cardio', proofPathname: body.proofPathname, description: body.description?.trim() || null, createdAt: new Date() }; const existing = await db.select({ id: cardioRecord.id }).from(cardioRecord).where(and(eq(cardioRecord.userId, me.id), eq(cardioRecord.recordDate, record.recordDate))); if (existing[0]) { await db.update(cardioRecord).set({ minutes: record.minutes, kilometers: record.kilometers, pace: record.pace, activityType: record.activityType, proofPathname: record.proofPathname, description: record.description }).where(eq(cardioRecord.id, existing[0].id)); return NextResponse.json({ record: { ...record, id: existing[0].id } }) } await db.insert(cardioRecord).values(record); return NextResponse.json({ record }) }
     return NextResponse.json({ error: 'Ação inválida' }, { status: 400 })
   } catch (error) { if (error instanceof Error && error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Não autenticado' }, { status: 401 }); return NextResponse.json({ error: 'Não foi possível concluir a ação' }, { status: 400 }) }
-}
+})

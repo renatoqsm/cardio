@@ -11,7 +11,11 @@
     "db:setup": "node scripts/setup-local.cjs",
     "dev:local": "node scripts/setup-local.cjs && next dev",
     "typecheck": "tsc --noEmit --incremental false",
-    "test:smoke": "node scripts/smoke.cjs"
+    "test:smoke": "node scripts/smoke.cjs",
+    "build:cloudflare": "node scripts/cloudflare-build.cjs",
+    "deploy:cloudflare": "node scripts/cloudflare-deploy.cjs",
+    "preview:cloudflare": "opennextjs-cloudflare preview",
+    "test:storage": "node scripts/test-storage.cjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -20,7 +24,7 @@
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.3",
     "lucide-react": "^1.16.0",
-    "next": "16.4.0",
+    "next": "16.3.8",
     "pg": "^8.23.1",
     "react": "^19",
     "react-dom": "^19",
@@ -29,6 +33,7 @@
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "1.20.9",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24",
     "@types/pg": "^8.23.1",
@@ -36,6 +41,7 @@
     "@types/react-dom": "^19",
     "postcss": "^8.5",
     "tailwindcss": "^4.3.3",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "wrangler": "4.148.0"
   }
 }

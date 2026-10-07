@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 process.loadEnvFile(path.join(__dirname, '../.env.local'));
+if (process.env.SUPABASE_URL || process.env.STORAGE_BACKEND === 'supabase') throw new Error('Run smoke tests against local storage only; remote cleanup is not supported.');
 const base = process.env.SMOKE_URL || process.env.BETTER_AUTH_URL;
 const users = [];
 const challenges = [];
@@ -49,7 +50,8 @@ async function main() {
   check(upload.ok, 'Local image upload');
   const { pathname } = await upload.json();
   const record = { action: 'record', recordDate: '2026-10-07', minutes: 30, kilometers: 5, proofPathname: pathname };
-  check((await post('/api/challenges', record, owner.cookie)).ok, 'Cardio record saved');
+  const saved = await post('/api/challenges', record, owner.cookie);
+  check(saved.ok, `Cardio record saved${saved.ok ? '' : ': ' + (await saved.json()).error}`);
   check((await post('/api/challenges', { ...record, minutes: 40 }, owner.cookie)).ok, 'Daily record updated');
   check((await post('/api/challenges', record, member.cookie)).status === 400, 'Another user cannot claim proof');
   const feed = await request('/api/challenges?challengeId=' + challenge.id, {}, member.cookie);

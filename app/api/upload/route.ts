@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
+import { getAuth } from '@/lib/auth'
+import { withDatabase } from '@/lib/db'
 import { headers } from 'next/headers'
 import { imageType, saveProof } from '@/lib/storage'
 
 export const runtime = 'nodejs'
 
-export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() })
+export const POST = withDatabase(async (request: Request) => {
+  const session = await getAuth().api.getSession({ headers: await headers() })
   if (!session?.user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   const form = await request.formData()
   const file = form.get('file')
@@ -17,4 +18,4 @@ export async function POST(request: Request) {
   if (!type) return NextResponse.json({ error: 'Envie uma imagem PNG, JPEG, GIF ou WebP válida' }, { status: 400 })
   const pathname = await saveProof(session.user.id, bytes, type.extension)
   return NextResponse.json({ pathname })
-}
+})

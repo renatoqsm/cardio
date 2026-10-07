@@ -16,3 +16,6 @@ node_modules
 .local/
 .data/
 *.tsbuildinfo
+.open-next/
+.wrangler/
+.dev.vars*
