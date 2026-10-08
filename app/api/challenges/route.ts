@@ -4,6 +4,7 @@ import { and, desc, eq, gte, inArray, lte, or, isNull, sql } from 'drizzle-orm'
 import { getAuth } from '@/lib/auth'
 import { getDatabase, withDatabase } from '@/lib/db'
 import { readProof, validFilename } from '@/lib/storage'
+import { verifyCapture } from '@/lib/capture-server'
 import { parseRecordInput } from '@/lib/record-input'
 import { parseChallengeInput } from '@/lib/challenge-input'
 import { challenge, challengeMember, cardioRecord, user } from '@/lib/db/schema'
@@ -39,7 +40,7 @@ export const GET = withDatabase(async (request: Request) => {
     const counts = await db.select({ challengeId: challengeMember.challengeId, count: sql<number>`count(*)::int` }).from(challengeMember).where(inArray(challengeMember.challengeId, memberships.map(item => item.challenge.id))).groupBy(challengeMember.challengeId)
     const members = await db.select({ id: user.id, name: user.name, image: user.image, joinedAt: challengeMember.joinedAt }).from(challengeMember).innerJoin(user, eq(challengeMember.userId, user.id)).where(eq(challengeMember.challengeId, active.id))
     const memberIds = members.map(member => member.id)
-    const records = memberIds.length === 0 ? [] : await db.select({ id: cardioRecord.id, modality: cardioRecord.modality, userId: cardioRecord.userId, name: user.name, image: user.image, recordDate: cardioRecord.recordDate, minutes: cardioRecord.minutes, kilometers: cardioRecord.kilometers, pace: cardioRecord.pace, activityType: cardioRecord.activityType, proofPathname: cardioRecord.proofPathname, description: cardioRecord.description, createdAt: cardioRecord.createdAt }).from(cardioRecord).innerJoin(user, eq(cardioRecord.userId, user.id)).where(and(inArray(cardioRecord.userId, memberIds), eq(cardioRecord.modality, active.modality), gte(cardioRecord.recordDate, active.startDate), lte(cardioRecord.recordDate, active.endDate))).orderBy(desc(cardioRecord.createdAt), desc(cardioRecord.id))
+    const records = memberIds.length === 0 ? [] : await db.select({ id: cardioRecord.id, captureDay: cardioRecord.captureDay, gestureId: cardioRecord.gestureId, modality: cardioRecord.modality, userId: cardioRecord.userId, name: user.name, image: user.image, recordDate: cardioRecord.recordDate, minutes: cardioRecord.minutes, kilometers: cardioRecord.kilometers, pace: cardioRecord.pace, activityType: cardioRecord.activityType, proofPathname: cardioRecord.proofPathname, description: cardioRecord.description, createdAt: cardioRecord.createdAt }).from(cardioRecord).innerJoin(user, eq(cardioRecord.userId, user.id)).where(and(inArray(cardioRecord.userId, memberIds), eq(cardioRecord.modality, active.modality), gte(cardioRecord.recordDate, active.startDate), lte(cardioRecord.recordDate, active.endDate))).orderBy(desc(cardioRecord.createdAt), desc(cardioRecord.id))
     const leaderboard = members.map(member => {
       const mine = records.filter(record => record.userId === member.id)
       const kilometers = mine.reduce((sum, record) => sum + Number(record.kilometers), 0)
@@ -99,9 +100,11 @@ export const POST = withDatabase(async (request: Request) => {
       if (typeof body.recordDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.recordDate) || Number.isNaN(Date.parse(body.recordDate)) || new Date(body.recordDate).toISOString().slice(0, 10) !== body.recordDate) throw new RequestError('Informe uma data válida para o treino.')
       const pathname = await ownedPhoto(body.proofPathname, me.id)
       if (!pathname) throw new RequestError('Envie seu comprovante antes de registrar o treino')
+      const capture = await verifyCapture(body.captureToken, me.id, pathname)
+      if (!capture) throw new RequestError('Atualize a página e tire uma nova foto pela câmera do site com o gesto do dia.')
       if (body.submissionKey != null && (typeof body.submissionKey !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.submissionKey))) throw new RequestError('Identificador de publicação inválido. Abra o formulário novamente.')
       const submissionKey = body.submissionKey || `proof:${pathname}`
-      const record = { id: id(), challengeId: null, userId: me.id, modality, submissionKey, recordDate: body.recordDate, ...values, activityType: modality === 'strength' ? 'Musculação' : typeof body.activityType === 'string' ? body.activityType.slice(0, 40) : 'Cardio', proofPathname: pathname, description: typeof body.description === 'string' ? body.description.trim().slice(0, 1500) || null : null, createdAt: new Date() }
+      const record = { id: id(), challengeId: null, userId: me.id, modality, submissionKey, captureDay: capture.captureDay, gestureId: capture.gestureId, recordDate: body.recordDate, ...values, activityType: modality === 'strength' ? 'Musculação' : typeof body.activityType === 'string' ? body.activityType.slice(0, 40) : 'Cardio', proofPathname: pathname, description: typeof body.description === 'string' ? body.description.trim().slice(0, 1500) || null : null, createdAt: new Date() }
       const confirmation = (existing: typeof cardioRecord.$inferSelect) => NextResponse.json({
         code: 'STRENGTH_CHECKIN_EXISTS', error: 'Você já registrou um treino de musculação nessa data. Deseja substituí-lo?',
         existingRecord: { id: existing.id, submissionKey: existing.submissionKey, recordDate: existing.recordDate },
@@ -115,7 +118,7 @@ export const POST = withDatabase(async (request: Request) => {
           if (retry.id !== body.replaceRecordId || retry.modality !== 'strength' || retry.recordDate !== body.recordDate) throw new RequestError('Esta publicação já foi concluída. Abra um novo registro.', 409)
           saved = retry; alreadyPublished = true; replaced = true
         } else {
-          const [updated] = await db.update(cardioRecord).set({ proofPathname: pathname, description: record.description, submissionKey }).where(and(eq(cardioRecord.id, body.replaceRecordId), eq(cardioRecord.userId, me.id), eq(cardioRecord.modality, 'strength'), eq(cardioRecord.recordDate, body.recordDate), body.expectedSubmissionKey === null ? isNull(cardioRecord.submissionKey) : eq(cardioRecord.submissionKey, body.expectedSubmissionKey))).returning()
+          const [updated] = await db.update(cardioRecord).set({ proofPathname: pathname, description: record.description, submissionKey, captureDay: capture.captureDay, gestureId: capture.gestureId }).where(and(eq(cardioRecord.id, body.replaceRecordId), eq(cardioRecord.userId, me.id), eq(cardioRecord.modality, 'strength'), eq(cardioRecord.recordDate, body.recordDate), body.expectedSubmissionKey === null ? isNull(cardioRecord.submissionKey) : eq(cardioRecord.submissionKey, body.expectedSubmissionKey))).returning()
           if (!updated) {
             const [current] = await db.select().from(cardioRecord).where(and(eq(cardioRecord.userId, me.id), eq(cardioRecord.modality, 'strength'), eq(cardioRecord.recordDate, body.recordDate)))
             if (current?.id === body.replaceRecordId && current.submissionKey === submissionKey) { saved = current; alreadyPublished = true; replaced = true }

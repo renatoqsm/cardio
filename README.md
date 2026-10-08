@@ -105,3 +105,20 @@ um servidor com Node.js, PostgreSQL e disco persistente para as fotos, configure
 `BETTER_AUTH_URL` com a URL HTTPS real e um segredo próprio, execute o build
 e inicie com `pnpm start`. Em várias instâncias, compartilhe banco e armazenamento.
 Não use disco efêmero para fotos ou dados do banco.
+
+## Câmera e gesto do dia
+
+Novos registros de cardio e musculação usam a câmera dentro do site, sem seletor
+da galeria. Permita o acesso à câmera no navegador; a captura exige HTTPS
+(localhost também funciona). É possível trocar entre câmeras disponíveis e
+refazer a foto. A câmera é desligada ao capturar ou fechar o formulário.
+
+Um gesto de mão é escolhido para todos a cada dia, no horário de Brasília.
+Faça o gesto fisicamente na foto. O feed mostra o gesto e a data da captura,
+para os membros conferirem. A data informada do treino continua editável.
+Fotos antigas permanecem visíveis sem receber indicação de gesto retroativa.
+
+O servidor vincula a foto enviada ao autor e ao gesto vigente usando uma
+assinatura com `BETTER_AUTH_SECRET`; não é necessário outro segredo. Isso
+não reconhece o gesto automaticamente nem comprova que houve exercício ou
+que o dispositivo usou uma câmera real. A conferência da foto é visual.

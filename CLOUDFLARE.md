@@ -63,6 +63,9 @@ OpenNext e a configuração Wrangler; o nome do Worker é `cardio`.
    um check-in de musculação por pessoa/data; os dados anteriores permanecem
    como Cardio. A tabela histórica `cardio_record` armazena as duas modalidades,
    mantendo as sete tabelas e as políticas de acesso existentes.
+   `20261008_daily_gesture.sql` acrescenta os campos opcionais do gesto e da
+   data de captura, preservando fotos e registros anteriores. Novos registros
+   usam a câmera do site e uma assinatura com `BETTER_AUTH_SECRET`.
    O script ativa RLS sem políticas públicas, impedindo acesso anônimo via
    Data API. A conexão PostgreSQL do servidor deve ter acesso às tabelas.
 3. Em Storage, crie o bucket **privado** `cardio-proofs`. Permita imagens

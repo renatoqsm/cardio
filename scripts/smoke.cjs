@@ -45,16 +45,26 @@ async function main() {
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
   const form = new FormData(); form.set('file', new Blob([png], { type: 'image/png' }), 'proof.png');
   check((await request('/api/upload', { method: 'POST', body: form })).status === 401, 'Anonymous upload denied');
+  check((await request('/api/capture')).status === 401, 'Anonymous daily gesture denied');
+  const daily = await (await request('/api/capture', {}, owner.cookie)).json();
+  const memberDaily = await (await request('/api/capture', {}, member.cookie)).json();
+  check(daily.gesture.id === memberDaily.gesture.id && daily.gesture.captureDay === memberDaily.gesture.captureDay, 'Daily gesture is shared across members');
+  form.set('purpose', 'training'); form.set('captureDay', daily.gesture.captureDay); form.set('gestureId', daily.gesture.id);
   const invalid = new FormData(); invalid.set('file', new Blob(['not an image'], { type: 'image/png' }), 'fake.png');
   check((await request('/api/upload', { method: 'POST', body: invalid }, owner.cookie)).status === 400, 'Disguised non-image rejected');
   const upload = await request('/api/upload', { method: 'POST', body: form }, owner.cookie);
   check(upload.ok, 'Local image upload');
-  const { pathname } = await upload.json(); proofs.push(pathname);
-  const record = { submissionKey: crypto.randomUUID(), action: 'record', recordDate: '2026-10-07', minutes: 30, kilometers: '5,0', pace: '6:30', proofPathname: pathname };
+  const { pathname, captureToken } = await upload.json(); proofs.push(pathname);
+  const record = { captureToken, submissionKey: crypto.randomUUID(), action: 'record', recordDate: '2026-10-07', minutes: 30, kilometers: '5,0', pace: '6:30', proofPathname: pathname };
   const saved = await post('/api/challenges', record, owner.cookie);
   check(saved.ok, `Cardio record saved${saved.ok ? '' : ': ' + (await saved.json()).error}`);
   const publication = await saved.json();
   const first = publication.record;
+  check(first.captureDay === daily.gesture.captureDay && first.gestureId === daily.gesture.id, 'Capture day and gesture stored with the workout');
+  check((await post('/api/challenges', { ...record, submissionKey: crypto.randomUUID(), captureToken: undefined }, owner.cookie)).status === 400, 'Generic gallery upload cannot be used without capture proof');
+  check((await post('/api/challenges', { ...record, submissionKey: crypto.randomUUID(), captureToken: captureToken + 'tampered' }, owner.cookie)).status === 400, 'Tampered capture proof rejected');
+  const expiredForm = new FormData(); expiredForm.set('file', new Blob([png], { type: 'image/png' }), 'proof.png'); expiredForm.set('purpose', 'training'); expiredForm.set('captureDay', '2000-01-01'); expiredForm.set('gestureId', daily.gesture.id);
+  check((await request('/api/upload', { method: 'POST', body: expiredForm }, owner.cookie)).status === 409, 'Old daily gesture cannot be submitted as current capture');
   check(publication.countedChallengeIds.includes(challenge.id), 'Publication confirms challenge inclusion');
   check(Number(first.pace) === 6.5, 'Pace in minutes/seconds stored correctly');
   const retries = await Promise.all([post('/api/challenges', record, owner.cookie), post('/api/challenges', record, owner.cookie)]);
@@ -96,7 +106,7 @@ async function main() {
   }
   const foreign = await request('/api/upload', { method: 'POST', body: form }, outsider.cookie);
   check(foreign.ok, 'Outsider own image upload');
-  const foreignPath = (await foreign.json()).pathname; proofs.push(foreignPath);
+  const foreignCapture = await foreign.json(); const foreignPath = foreignCapture.pathname; proofs.push(foreignPath);
   check((await post('/api/challenges', { ...settings, profilePathname: foreignPath }, owner.cookie)).status === 400, 'Administrator cannot claim another account image');
   for (const [label, cookie, status] of [['Owner', owner.cookie, 200], ['Member', member.cookie, 200], ['Outsider', outsider.cookie, 404], ['Anonymous', undefined, 401]]) {
     const proof = await request(pathname, {}, cookie);
@@ -137,8 +147,9 @@ async function main() {
     check(cardioGroups.every(c => result.countedChallengeIds.includes(c.id)) && strengthGroups.every(c => !result.countedChallengeIds.includes(c.id)), 'One cardio counts in all five cardio challenges and no strength challenge');
   }
   const strengthUpload = await request('/api/upload', { method: 'POST', body: form }, owner.cookie);
-  check(strengthUpload.ok, 'Strength proof uploaded'); const strengthPath = (await strengthUpload.json()).pathname; proofs.push(strengthPath);
-  const strengthRecord = { action: 'record', modality: 'strength', recordDate: '2026-10-10', proofPathname: strengthPath, description: 'Treino de pernas', minutes: 999, kilometers: 999 };
+  check(strengthUpload.ok, 'Strength proof uploaded'); const strengthCapture = await strengthUpload.json(); const strengthPath = strengthCapture.pathname; proofs.push(strengthPath);
+  check((await post('/api/challenges', { ...record, submissionKey: crypto.randomUUID(), captureToken, proofPathname: strengthPath }, owner.cookie)).status === 400, 'Capture proof bound to its exact uploaded photo');
+  const strengthRecord = { captureToken: strengthCapture.captureToken, action: 'record', modality: 'strength', recordDate: '2026-10-10', proofPathname: strengthPath, description: 'Treino de pernas', minutes: 999, kilometers: 999 };
   const concurrent = await Promise.all(Array.from({ length: 3 }, () => post('/api/challenges', { ...strengthRecord, submissionKey: crypto.randomUUID() }, owner.cookie)));
   const concurrentBodies = await Promise.all(concurrent.map(r => r.json()));
   check(concurrent.filter(r => r.ok).length === 1 && concurrent.filter(r => r.status === 409).length === 2 && new Set(concurrentBodies.map(r => r.record?.id ?? r.existingRecord?.id)).size === 1, 'Concurrent strength submissions create one check-in and ask confirmation for duplicates');
@@ -153,8 +164,8 @@ async function main() {
   const nextDay = await post('/api/challenges', { ...strengthRecord, recordDate: '2026-10-11', submissionKey: crypto.randomUUID() }, owner.cookie);
   check(nextDay.ok && !(await nextDay.json()).alreadyPublished, 'Next day permits another strength check-in');
   const memberUpload = await request('/api/upload', { method: 'POST', body: form }, member.cookie);
-  check(memberUpload.ok, 'Member own strength proof upload'); const memberPath = (await memberUpload.json()).pathname; proofs.push(memberPath);
-  const memberCheckin = await post('/api/challenges', { ...strengthRecord, proofPathname: memberPath, submissionKey: crypto.randomUUID() }, member.cookie);
+  check(memberUpload.ok, 'Member own strength proof upload'); const memberCapture = await memberUpload.json(); const memberPath = memberCapture.pathname; proofs.push(memberPath);
+  const memberCheckin = await post('/api/challenges', { ...strengthRecord, captureToken: memberCapture.captureToken, proofPathname: memberPath, submissionKey: crypto.randomUUID() }, member.cookie);
   check(memberCheckin.ok && !(await memberCheckin.json()).alreadyPublished, 'Daily strength limit is per person');
   for (const c of strengthGroups.slice(0, 2)) {
     const data = await (await request('/api/challenges?challengeId=' + c.id, {}, owner.cookie)).json();
@@ -176,9 +187,10 @@ async function main() {
   check(ownMemberLookup.existingRecord.id !== lookup.existingRecord.id, 'Daily lookup returns only own check-in');
   const noRecord = await (await request('/api/records?recordDate=2026-10-12', {}, owner.cookie)).json();
   check(noRecord.existingRecord === null, 'Other date does not trigger replacement');
-  const replacement = { ...strengthRecord, submissionKey: crypto.randomUUID(), description: 'Treino substituído com confirmação', proofPathname: pathname, replaceExisting: true, replaceRecordId: lookup.existingRecord.id, expectedSubmissionKey: lookup.existingRecord.submissionKey };
+  const replacement = { ...strengthRecord, submissionKey: crypto.randomUUID(), description: 'Treino substituído com confirmação', captureToken, proofPathname: pathname, replaceExisting: true, replaceRecordId: lookup.existingRecord.id, expectedSubmissionKey: lookup.existingRecord.submissionKey };
   const replacedResponse = await post('/api/challenges', replacement, owner.cookie);
   check(replacedResponse.ok, 'Confirmed replacement saved'); const replaced = await replacedResponse.json();
+  check(replaced.record.gestureId === daily.gesture.id && replaced.record.captureDay === daily.gesture.captureDay, 'Replacement keeps new photo daily-gesture metadata');
   check(replaced.replaced && replaced.record.id === lookup.existingRecord.id && replaced.record.description === replacement.description && replaced.record.proofPathname === pathname, 'Replacement updates photo/description and preserves check-in identity/date');
   const retriedReplacement = await (await post('/api/challenges', replacement, owner.cookie)).json();
   check(retriedReplacement.replaced && retriedReplacement.alreadyPublished && retriedReplacement.record.id === replaced.record.id, 'Confirmed replacement retry is idempotent');
@@ -196,7 +208,7 @@ async function main() {
     const data = await (await request('/api/challenges?challengeId=' + c.id, {}, owner.cookie)).json();
     check(data.leaderboard.find(m => m.id === owner.id).checkIns === 2 && data.feed.filter(r => r.userId === owner.id && r.recordDate === '2026-10-10').length === 1, 'Replacement preserves daily total in ' + c.name);
   }
-  const noChallenge = await post('/api/challenges', { ...strengthRecord, proofPathname: foreignPath, submissionKey: crypto.randomUUID() }, outsider.cookie);
+  const noChallenge = await post('/api/challenges', { ...strengthRecord, captureToken: foreignCapture.captureToken, proofPathname: foreignPath, submissionKey: crypto.randomUUID() }, outsider.cookie);
   check(noChallenge.ok, 'Global strength record allowed without any challenge');
   check((await noChallenge.json()).countedChallengeIds.length === 0, 'No-challenge publication does not leak or count in other groups');
   const globalLookup = await (await request('/api/records?recordDate=2026-10-10', {}, outsider.cookie)).json();

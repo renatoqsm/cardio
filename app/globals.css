@@ -320,3 +320,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 @media (max-width: 400px) { .modality-options { gap: 10px; } .modality-option { padding: 19px 13px; } .modality-option strong { font-size: 18px; } .topbar-actions { gap: 3px; } .mobile-user .avatar { display: none; } .feed-metrics .strength-metric { font-size: 16px; } }
 .replacement-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
 .replacement-actions > button { flex: 1; min-width: 140px; }
+.camera-proof { display: flex; flex-direction: column; gap: 10px; }
+.daily-gesture { display: flex; gap: 12px; align-items: flex-start; background: #eff5df; border: 1px solid #d7e4bf; border-radius: 13px; padding: 15px; }
+.gesture-emoji { font-size: 35px; line-height: 1.2; flex-shrink: 0; }
+.daily-gesture strong { font-size: 14px; }
+.daily-gesture p { font-size: 12px; line-height: 1.6; margin-top: 4px; color: #4b6240; }
+.daily-gesture small { display: block; margin-top: 6px; color: #627351; font-size: 10px; }
+.camera-note { font-size: 11px; color: #61715b; line-height: 1.6; }
+.camera-photo, .camera-view { border: 1px solid #dde6d0; background: #f3f6ed; border-radius: 12px; overflow: hidden; }
+.camera-photo { display: grid; place-items: center; min-height: 100px; color: #60754c; }
+.camera-photo img, .camera-view video { width: 100%; max-height: 42dvh; object-fit: contain; }
+.camera-view { position: relative; min-height: 150px; background: #19241c; }
+.camera-view > span { position: absolute; inset: 0; display: grid; place-items: center; color: white; font-size: 13px; }
+.camera-mirrored { transform: scaleX(-1); }
+.camera-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.camera-actions .button { flex: 1; font-size: 11px; padding: 10px; }
+.feed-gesture { margin: 0 23px 12px; font-size: 11px; color: #516844; display: flex; gap: 6px; align-items: center; }
+
+.challenge-modality-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.challenge-modality-icon.cardio { color: #ba5b20; }
+.challenge-modality-icon.strength { color: #3b502a; }
