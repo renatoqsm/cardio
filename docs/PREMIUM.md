@@ -59,35 +59,108 @@ O checkout recebe o pagamento; o aplicativo controla os benefícios.
 - Exibir status, período pago, quantidade de membros, limite e botão de assinatura
   no desafio, com ação de cobrança exclusiva do administrador.
 
-## Pré-requisitos pendentes
+## Implementação e ativação
 
-A conta de produção foi criada. Ainda é necessário salvar a chave da API no
-campo seguro `ASAAS_API_KEY`, publicar a configuração e validar o cadastro
-comercial, as taxas e os métodos disponíveis. `ASAAS_ENVIRONMENT=production`
-foi preparado como variável de ambiente não secreta. Os destinos do Asaas foram
-adicionados à rede, preservando os destinos anteriores.
+A integração está implementada e protegida por `BILLING_ENABLED=false` no Worker.
+Enquanto essa variável estiver falsa, o aplicativo preserva o comportamento
+anterior e não oferece checkout nem impõe os limites comerciais. Ativar checkout
+e restrições em conjunto somente depois dos pré-requisitos abaixo.
 
-A documentação oficial foi consultada após a configuração da rede. O checkout
-recorrente usa `POST /v3/checkouts`, `billingTypes=[CREDIT_CARD]`,
-`chargeTypes=[RECURRENT]` e `subscription.cycle=MONTHLY` ou `YEARLY`. A URL de
-retorno não comprova pagamento. Checkout, assinatura e cada cobrança recorrente
-têm eventos distintos; a implementação completa precisa acompanhar os três.
+- `lib/billing/plans.ts`: preços fixos em centavos e limites por desafio.
+- `lib/billing/asaas.ts`: checkout hospedado recorrente no cartão, consulta
+  canônica de cobranças/assinaturas e cancelamento.
+- `lib/billing/store.ts`: contratos, períodos efetivamente pagos, reconciliação,
+  cancelamento e processamento durável/idempotente de eventos.
+- `/api/billing`: contratação exclusiva do administrador, preço no servidor,
+  proteção de origem, conferência de pagamento e cancelamento.
+- `/api/billing/webhook`: autenticação por `asaas-access-token`, confirmação
+  canônica no Asaas e nova tentativa em caso de falha de processamento.
+- `components/premium-panel.tsx`: mensal/anual, preço, renovação, período pago,
+  limite, pagamento pendente e cancelamento; compatível com os dois temas.
+- `20261008_billing.sql`: migração aditiva com políticas privadas para `cardio_app`.
+- `record_challenge`: destinos elegíveis de cada publicação; um treino feito
+  enquanto o desafio está bloqueado não passa a pontuar retroativamente após
+  pagar. Registros legados foram preservados. As datas do desafio continuam
+  delimitando o ranking. Novos registros exigem participação e elegibilidade
+  do desafio no momento da publicação. Um único registro atende a vários destinos.
+
+Entradas simultâneas bloqueiam a linha do desafio e respeitam 5/200 pessoas,
+incluindo o administrador. Quem já participa pode repetir a entrada sem consumir
+vaga. Cancelamento/exclusão e criação da contratação compartilham bloqueios para
+não deixar uma renovação esquecida. O cancelamento mantém os períodos pagos;
+estorno, contestação ou exclusão da cobrança revogam o período correspondente.
+
+Períodos usam a data de vencimento canônica da fatura no calendário de Brasília;
+o fim de mês é limitado ao último dia válido. Pagamentos futuros não concedem
+acesso antes do período contratado. Um retorno de checkout nunca libera Premium.
+Uma resposta ambígua ao criar checkout mantém a reserva durável e exige suporte,
+em vez de abrir outra assinatura silenciosamente. A página permite reconciliação
+manual pelo administrador para eventos perdidos. Não armazenar dados de cartão
+nem o corpo completo dos webhooks no aplicativo.
+
+### Pré-requisitos para cobrar
+
+1. Configurar `ASAAS_API_KEY` como segredo seguro de produção e
+   `ASAAS_ENVIRONMENT=production` como variável sem segredo; conferir autenticação.
+2. Regularizar o cadastro comercial/bancário/documental no Asaas e confirmar
+   habilitação do checkout recorrente. Na consulta inicial de 08/10/2026,
+   `commercialInfo=APPROVED`, `bankAccountInfo=PENDING`,
+   `documentation=REJECTED`, `general=PENDING`; isso pode mudar após a revisão.
+3. Gerar um token forte e independente para `ASAAS_WEBHOOK_TOKEN`, cadastrá-lo
+   como segredo no Worker e no webhook Asaas. Endpoint:
+   `https://cardio.renatoqsousam.workers.dev/api/billing/webhook`.
+4. Cadastrar webhook API v3, `enabled=true`, `interrupted=false`,
+   `sendType=SEQUENTIALLY`, incluindo checkout, assinatura, confirmação/recebimento,
+   estorno, contestação e exclusão de pagamentos. Validar entrega autenticada.
+5. Validar primeiro no sandbox: checkout real, primeiro pagamento, renovação,
+   falha, cancelamento e estorno. Os testes atuais simulam o provedor; não
+   demonstram liquidação nem renovação real de cartão. Não cobrar alguém apenas
+   para testar. Uma chave de produção não serve no sandbox.
+6. Comunicar a transição aos desafios existentes e publicar
+   `BILLING_ENABLED=true` junto do checkout funcional. Continuar preservando
+   o histórico; cardio e grupos de musculação acima de 5 ficam para consulta
+   até contratar. Convidados nunca precisam de assinatura própria.
+
+Na sessão de configuração, a chave válida foi encontrada no campo errado
+`ASAAS_ENVIRONMENT` e autenticou uma consulta somente de leitura. O binding
+`ASAAS_API_KEY` retornou 401; a correção comunicada pelo proprietário ainda não
+foi observada no processo desta sessão. Uma saída de diagnóstico mostrou
+indevidamente o valor do campo errado; substituir essa chave antes de ativar a
+cobrança. Não guardar nem versionar os valores das credenciais.
+
+### Publicação preparada
+
+Migração aplicada ao Supabase e Worker publicado com cobrança desativada:
+versão `06a2ad8f-663e-4692-b8fb-6898007e7abe`, em 08/10/2026.
+A verificação pública confirmou página 200, API anônima 401, login/cadastro,
+criação e exclusão de desafio, acesso anterior preservado e checkout desativado
+com 503. Somente os dados criados pela verificação foram removidos.
+O build do Worker passou; os arquivos do bundle foram conferidos para não
+conter os valores das credenciais locais. A autenticação inicial do Asaas foi
+somente de leitura. Nenhuma cobrança real foi criada ou realizada.
+
+### Validação executada
+
+- `node scripts/test-billing.cjs`: 39 verificações de preços, período, acesso,
+  payload, URL confiável, autenticação e privacidade de erros; provedor simulado.
+- `node scripts/test-billing-lifecycle.cjs`: 17 verificações em PostgreSQL local,
+  incluindo repetição concorrente, eventos fora de ordem, valor incorreto,
+  vencimento futuro, estorno, exclusão, cancelamento e preservação do período;
+  provedor simulado, sem cobranças reais.
+- `node scripts/test-premium-gates.cjs`: 20 verificações HTTP com
+  `BILLING_ENABLED=true`: última vaga simultânea em 5/200, autorização,
+  webhook falso, cardio bloqueado, publicação global e histórico após expiração;
+  somente banco/arquivos locais, sem chamadas reais ao provedor.
+- `node scripts/smoke.cjs`: 149 verificações do aplicativo com cobrança desativada.
+- Interface mobile: preços, retorno pendente, período pago, cancelamento,
+  temas claro/escuro e ausência de transbordamento ou erro de navegador.
+
+Não usar os scripts de teste contra o banco ou armazenamento de produção.
+As credenciais simuladas nos testes não são credenciais reais.
 
 Fontes verificadas:
 - https://docs.asaas.com/docs/checkout-com-assinatura-recorrente
 - https://docs.asaas.com/reference/criar-novo-checkout
 - https://docs.asaas.com/docs/eventos-para-checkout
 - https://docs.asaas.com/docs/link-do-checkout-e-redirecionamento-do-cliente
-
-A base em `lib/billing` define preços, períodos pagos e limites, e implementa o
-cliente de checkout recorrente do Asaas. `node scripts/test-billing.cjs` valida
-25 casos com respostas simuladas, sem chamadas reais ao provedor. Ela ainda não
-está ligada aos controles do aplicativo, à persistência de assinaturas ou aos
-webhooks; não foi publicada uma restrição sem checkout funcional.
-
-Configurar credenciais somente em configurações seguras, sem versioná-las:
-`ASAAS_API_KEY`, ambiente de testes/produção e token de autenticação dos webhooks.
-Não reutilizar chave de testes em produção. Validar primeiro no ambiente de testes:
-primeiro pagamento, renovação, falha, cancelamento, webhook repetido, concorrência
-na última vaga e preservação dos dados existentes. Depois habilitar a cobrança
-real e as restrições em conjunto.
+- https://docs.asaas.com/reference/criar-novo-webhook

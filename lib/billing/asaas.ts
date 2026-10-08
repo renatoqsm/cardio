@@ -10,6 +10,12 @@ function configuration() {
   if (environment !== 'production' && environment !== 'sandbox') throw new AsaasError(503, 'O ambiente de pagamentos ainda não foi configurado.')
   return { key, api: environment === 'production' ? 'https://api.asaas.com/v3' : 'https://api-sandbox.asaas.com/v3', checkoutOrigin: environment === 'production' ? 'https://asaas.com' : 'https://sandbox.asaas.com' }
 }
+export function assertAsaasReady() {
+  const config=configuration()
+  let base: URL
+  try { base=new URL(process.env.BETTER_AUTH_URL || '') } catch { throw new AsaasError(503,'O endereço do aplicativo ainda não foi configurado.') }
+  if (base.protocol !== 'https:' && !(config.checkoutOrigin.includes('sandbox') && ['localhost','127.0.0.1'].includes(base.hostname))) throw new AsaasError(503,'O endereço seguro do aplicativo ainda não foi configurado.')
+}
 function resourceId(value: unknown) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(value)) throw new AsaasError(400, 'Identificador de pagamento inválido.')
   return encodeURIComponent(value)
@@ -28,11 +34,11 @@ export async function asaasRequest<T>(path: string, method = 'GET', body?: unkno
   if (!response.ok) throw new AsaasError(response.status)
   try { return await response.json() as T } catch { throw new AsaasError(502) }
 }
-export type AsaasPayment = { id: string; customer: string; subscription: string | null; checkoutSession: string | null; value: number; billingType: string; status: string; dueDate: string; deleted: boolean }
+export type AsaasPayment = { id: string; customer: string; subscription: string | null; checkoutSession: string | null; value: number; billingType: string; status: string; dueDate: string; deleted: boolean; refunds?: unknown[]; chargeback?: unknown }
 export type AsaasSubscription = { id: string; customer: string; checkoutSession: string | null; cycle: string; value: number; status: string; deleted: boolean; nextDueDate: string }
 export function readPayment(id: string) { return asaasRequest<AsaasPayment>(`/payments/${resourceId(id)}`) }
 export function readSubscription(id: string) { return asaasRequest<AsaasSubscription>(`/subscriptions/${resourceId(id)}`) }
-export function paymentsForCheckout(id: string) { return asaasRequest<{ data: AsaasPayment[]; hasMore: boolean }>(`/payments?checkoutSession=${resourceId(id)}&limit=100`) }
+export function paymentsForCheckout(id: string, offset = 0) { return asaasRequest<{ data: AsaasPayment[]; hasMore: boolean }>(`/payments?checkoutSession=${resourceId(id)}&limit=100&offset=${offset}`) }
 export function cancelSubscription(id: string) { return asaasRequest<{ deleted: boolean; id: string }>(`/subscriptions/${resourceId(id)}`, 'DELETE') }
 export function cancelCheckout(id: string) { return asaasRequest<unknown>(`/checkouts/${resourceId(id)}/cancel`, 'POST') }
 export async function createRecurringCheckout(input: { reference: string; challengeId: string; plan: PremiumPlanId; imageBase64: string }) {
@@ -48,8 +54,10 @@ export async function createRecurringCheckout(input: { reference: string; challe
     items: [{ name: `Pulso Premium ${plan.label}`, description: `Premium por desafio. Renovação ${plan.id === 'monthly' ? 'mensal' : 'anual'} automática; até 200 membros.`, quantity: 1, value: plan.amountCents / 100, imageBase64: input.imageBase64 }],
     subscription: { cycle: plan.cycle, nextDueDate },
   })
-  resourceId(result.id)
+  if (typeof result.id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(result.id)) throw new AsaasError(502)
   // Build the hosted URL ourselves; never redirect to an arbitrary URL from a payload.
   const url = new URL('/checkoutSession/show', config.checkoutOrigin); url.searchParams.set('id', result.id)
   return { id: result.id, url: url.toString() }
 }
+
+export function paymentsForSubscription(id: string, offset = 0) { return asaasRequest<{ data: AsaasPayment[]; hasMore: boolean }>(`/payments?subscription=${resourceId(id)}&limit=100&offset=${offset}`) }

@@ -9,5 +9,7 @@ export const challenge = pgTable('challenge', { id: text('id').primaryKey(), own
 export const challengeMember = pgTable('challenge_member', { id: text('id').primaryKey(), challengeId: text('challengeId').notNull(), userId: text('userId').notNull(), joinedAt: timestamp('joinedAt').notNull() }, (t) => [unique().on(t.challengeId, t.userId)])
 export const cardioRecord = pgTable('cardio_record', { id: text('id').primaryKey(), challengeId: text('challengeId'), userId: text('userId').notNull(), recordDate: date('recordDate').notNull(), modality: text('modality').notNull().default('cardio'), submissionKey: text('submissionKey'), captureDay: date('captureDay'), gestureId: text('gestureId'), minutes: integer('minutes').notNull(), kilometers: numeric('kilometers').notNull(), pace: numeric('pace'), activityType: text('activityType').notNull(), proofPathname: text('proofPathname').notNull(), description: text('description'), createdAt: timestamp('createdAt').notNull() }, (t) => [unique().on(t.userId, t.submissionKey), uniqueIndex('strength_daily_checkin').on(t.userId, t.recordDate).where(sql`${t.modality} = 'strength'`)])
 
+export const recordChallenge = pgTable('record_challenge', { recordId: text('recordId').notNull(), challengeId: text('challengeId').notNull() }, t => [unique().on(t.recordId,t.challengeId)])
+
 export const authSchema = { user, session, account, verification }
 export const appSchema = { challenge, challengeMember, cardioRecord }

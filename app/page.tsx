@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowDown, ArrowRight, CalendarDays, Check, ChevronRight, Copy, Crown, Dumbbell, Flame, Image as ImageIcon, LogOut, Plus, Search, Settings2, Timer, Trash2, Trophy, Users, Zap } from 'lucide-react'
+import { PremiumPanel } from '@/components/premium-panel'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { authClient } from '@/lib/auth-client'
 import { gestures } from '@/lib/gestures'
@@ -22,6 +23,7 @@ function status(challenge: Challenge) { const today = localDate(); return today 
 function ChallengePicture({ challenge, small = false }: { challenge: Challenge; small?: boolean }) { return <span className={`challenge-picture ${small ? 'challenge-picture-small' : ''}`}>{challenge.profilePathname ? <img src={challenge.profilePathname} alt={`Foto de ${challenge.name}`} /> : challenge.modality === 'strength' ? <Dumbbell size={small ? 23 : 34} strokeWidth={1.8} /> : <Flame size={small ? 23 : 34} strokeWidth={1.8} />}</span> }
 
 export default function Page() {
+  const [premiumEnabled,setPremiumEnabled] = useState(false)
   const [session, setSession] = useState<{ id: string; name: string; image?: string | null } | null>(null)
   const [challenges, setChallenges] = useState<Challenge[]>([]), [selected, setSelected] = useState<Challenge | null>(null)
   const [members, setMembers] = useState<Member[]>([]), [feed, setFeed] = useState<FeedItem[]>([])
@@ -44,12 +46,17 @@ export default function Page() {
       const data = await response.json()
       if (current !== requestNumber.current) return
       const active = data.challenges.find((item: Challenge) => item.id === data.selectedChallengeId) ?? null
-      setSession(data.user); setChallenges(data.challenges); setSelected(active); selectedId.current = active?.id
+      setPremiumEnabled(data.billingEnabled === true); setSession(data.user); setChallenges(data.challenges); setSelected(active); selectedId.current = active?.id
       setMembers(data.members ?? data.leaderboard ?? []); setFeed(data.feed); setError('')
     } catch (error) { if (current === requestNumber.current) setError(message(error)) }
     finally { if (current === requestNumber.current) { setLoading(false); setRefreshing(false) } }
   }, [])
-  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => {
+    const query=new URLSearchParams(window.location.search)
+    const target=query.get('challengeId')||undefined
+    if(query.get('checkout')) setNotice('Retorno do checkout recebido. Confira o pagamento no desafio; a liberação depende da confirmação do Asaas.')
+    void refresh(target)
+  }, [refresh])
   useEffect(() => { if (!notice) return; const timeout = window.setTimeout(() => setNotice(''), 5000); return () => window.clearTimeout(timeout) }, [notice])
   const afterAction = (text: string, id?: string) => { setModal(null); setNotice(text); void refresh(id) }
   const manageChallenge = async () => {
@@ -86,6 +93,7 @@ export default function Page() {
         {error && <div className="error-banner" role="alert">{error}<button onClick={() => void refresh()}>Tentar novamente</button></div>}
         {selected ? <>
           <ChallengeHero challenge={selected} members={members} sessionId={session.id} onEdit={() => setModal('edit')} onMembers={() => setTab('members')} onCopy={() => setNotice('Chave copiada. Compartilhe com sua turma!')} onError={setError} />
+          <PremiumPanel key={selected.id} challenge={selected} isOwner={selected.ownerId === session.id} onRefresh={() => void refresh(selected.id)} />
           <div className="challenge-management"><span>{selected.ownerId === session.id ? 'Você administra este desafio.' : 'Você participa deste desafio.'}</span><button onClick={() => { setActionError(''); setChallengeAction({ challenge: selected, kind: selected.ownerId === session.id ? 'delete' : 'leave' }) }}>{selected.ownerId === session.id ? <Trash2 size={16} /> : <LogOut size={16} />}{selected.ownerId === session.id ? 'Excluir desafio' : 'Sair do desafio'}</button></div>
           <div className="challenge-tabs" role="tablist" aria-label="Conteúdo do desafio">{([['feed', 'Feed', Flame], ['ranking', 'Ranking', Trophy], ['members', 'Membros', Users]] as const).map(([key, label, Icon]) => <button key={key} id={`tab-${key}`} role="tab" aria-controls={`panel-${key}`} aria-selected={tab === key} onClick={() => setTab(key)}><Icon size={17} />{label}{key === 'members' && <span className="tab-count">{members.length}</span>}</button>)}<span className="tab-status" aria-live="polite">{refreshing ? 'Atualizando…' : `${feed.length} ${selected.modality === 'strength' ? 'check-ins' : feed.length === 1 ? 'treino registrado' : 'treinos registrados'}`}</span></div>
           <section id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`}>
@@ -97,11 +105,11 @@ export default function Page() {
         </> : <div className="welcome"><span className="welcome-icon"><Flame size={42} /></span><p className="eyebrow">COMECE UM MOVIMENTO</p><h1>Seu próximo desafio<br />é melhor em turma.</h1><p>Crie um objetivo, convide seus amigos e transforme cada treino em uma conquista compartilhada.</p><div><button className="button primary" onClick={() => setModal('create')}><Plus size={18} />Criar meu desafio</button><button className="button secondary" onClick={() => setModal('join')}>Tenho uma chave<ArrowRight size={17} /></button></div></div>}
       </div>
     </main>
-    {(modal === 'create' || (modal === 'edit' && selected)) && <ChallengeEditor challenge={modal === 'edit' ? selected! : undefined} onClose={() => setModal(null)} onSaved={id => afterAction(modal === 'edit' ? 'Desafio atualizado. A cara da turma ficou ainda melhor.' : 'Desafio criado. Agora é só convidar a turma!', id)} />}
+    {(modal === 'create' || (modal === 'edit' && selected)) && <ChallengeEditor premiumEnabled={premiumEnabled} challenge={modal === 'edit' ? selected! : undefined} onClose={() => setModal(null)} onSaved={id => afterAction(modal === 'edit' ? 'Desafio atualizado. A cara da turma ficou ainda melhor.' : 'Desafio criado. Agora é só convidar a turma!', id)} />}
     {modal === 'join' && <JoinDialog onClose={() => setModal(null)} onJoined={id => afterAction('Você está na turma. Vamos nessa!', id)} />}
     {modal === 'record' && <RecordModal challenges={challenges} onClose={() => setModal(null)} onSaved={result => afterAction(result.replaced ? 'Treino de musculação substituído. Continua contando um único check-in nesse dia nos desafios elegíveis.' : result.alreadyPublished ? result.record.modality === 'strength' ? 'Seu check-in de musculação nessa data já estava salvo. Ele conta uma única vez em cada desafio elegível.' : 'Esse cardio já estava salvo. Ele não foi contado duas vezes.' : result.countedChallengeIds.length > 0 ? `Registro salvo e contabilizado em ${result.countedChallengeIds.length} ${result.countedChallengeIds.length === 1 ? 'desafio' : 'desafios'} de ${result.record.modality === 'strength' ? 'musculação' : 'cardio'}.` : 'Registro salvo. Você não tem desafios desta modalidade no período da data informada.')} />}
 
-    {challengeAction && <Dialog title={challengeAction.kind === 'delete' ? 'Excluir desafio?' : 'Sair do desafio?'} onClose={() => { if (!actionBusy) setChallengeAction(null) }}><p className="editor-intro">{challengeAction.kind === 'delete' ? <>O desafio <strong>{challengeAction.challenge.name}</strong> será excluído para todos os membros. Esta ação não pode ser desfeita.</> : <>Você deixará de participar de <strong>{challengeAction.challenge.name}</strong> e sairá do ranking deste desafio. Poderá entrar novamente com a chave.</>}</p><p className="muted editor-intro">Seus treinos e fotos pessoais continuam salvos e contando nos outros desafios elegíveis.</p>{actionError && <p className="error" role="alert">{actionError}</p>}<div className="replacement-actions"><button className="button secondary" disabled={actionBusy} onClick={() => setChallengeAction(null)}>Cancelar</button><button className="button danger" disabled={actionBusy} onClick={() => void manageChallenge()}>{actionBusy ? 'Aguarde…' : challengeAction.kind === 'delete' ? 'Sim, excluir desafio' : 'Sim, sair do desafio'}</button></div></Dialog>}
+    {challengeAction && <Dialog title={challengeAction.kind === 'delete' ? 'Excluir desafio?' : 'Sair do desafio?'} onClose={() => { if (!actionBusy) setChallengeAction(null) }}><p className="editor-intro">{challengeAction.kind === 'delete' ? <>O desafio <strong>{challengeAction.challenge.name}</strong> será excluído para todos os membros. Esta ação não pode ser desfeita.</> : <>Você deixará de participar de <strong>{challengeAction.challenge.name}</strong> e sairá do ranking deste desafio. Poderá entrar novamente com a chave.</>}</p><p className="muted editor-intro">Seus treinos e fotos pessoais continuam salvos e contando nos outros desafios elegíveis.</p>{premiumEnabled && challengeAction.kind === 'delete' && <p>A renovação do Premium deste desafio será cancelada antes da exclusão.</p>}{actionError && <p className="error" role="alert">{actionError}</p>}<div className="replacement-actions"><button className="button secondary" disabled={actionBusy} onClick={() => setChallengeAction(null)}>Cancelar</button><button className="button danger" disabled={actionBusy} onClick={() => void manageChallenge()}>{actionBusy ? 'Aguarde…' : challengeAction.kind === 'delete' ? 'Sim, excluir desafio' : 'Sim, sair do desafio'}</button></div></Dialog>}
     {photo && <Dialog title={`Treino de ${photo.name}`} onClose={() => setPhoto(null)} wide><img className="full-proof" src={photo.proofPathname} alt={`Comprovante do treino de ${photo.name}`} /><p className="photo-caption">{date(photo.recordDate, true)} · {photo.modality === 'strength' ? 'Check-in de musculação' : `${photo.minutes} min · ${number(Number(photo.kilometers), 2)} km`}</p></Dialog>}
   </div>
 }

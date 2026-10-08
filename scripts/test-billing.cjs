@@ -8,12 +8,14 @@ function load(name) {
   const file = path.join(project, 'lib/billing', name + '.ts');
   const m = new Module(file); m.filename = file; m.paths = Module._nodeModulePaths(path.dirname(file));
   const original = createRequire(file);
-  m.require = value => value === 'server-only' ? {} : value === './plans' ? load('plans') : original(value);
-  m._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, file);
+  m.require = value => value === 'server-only' ? {} : value.startsWith('./') ? load(value.slice(2)) : original(value);
+  m._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, file);
   return m.exports;
 }
 const { premiumPlan, challengeAccess, hasPaidAccess } = load('plans');
 const asaas = load('asaas');
+const { invoicePeriod, paymentGrantsAccess } = load('periods');
+const { validWebhookToken } = load('webhook-auth');
 const names = ['ASAAS_API_KEY', 'ASAAS_ENVIRONMENT', 'BETTER_AUTH_URL'];
 const saved = Object.fromEntries(names.map(k => [k, process.env[k]]));
 const originalFetch = global.fetch;
@@ -21,6 +23,16 @@ let calls = [], response = { id: 'checkout_test', link: 'https://untrusted.examp
 const check = (condition, label) => { assert(condition, label); checks++; console.log('PASS:', label); };
 async function rejects(fn, predicate, label) { await assert.rejects(async () => fn(), predicate); checks++; console.log('PASS:', label); }
 async function main() {
+  check(invoicePeriod('2026-01-31','monthly').endsAt.toISOString()==='2026-02-28T03:00:00.000Z','Month-end invoice clamps to last calendar day');
+  check(invoicePeriod('2024-02-29','annual').endsAt.toISOString()==='2025-02-28T03:00:00.000Z','Annual leap-day invoice clamps safely');
+  assert.throws(()=>invoicePeriod('2026-02-30','monthly'));checks++;
+  const invoice={status:'CONFIRMED',deleted:false,value:9.9,billingType:'CREDIT_CARD'};
+  check(paymentGrantsAccess(invoice,'monthly'),'Canonical confirmed card payment grants access');
+  for(const status of ['PENDING','OVERDUE','REFUNDED','REFUND_REQUESTED','CHARGEBACK_REQUESTED','CHARGEBACK_DISPUTE','AWAITING_CHARGEBACK_REVERSAL']) check(!paymentGrantsAccess({...invoice,status},'monthly'),'No access for '+status);
+  check(!paymentGrantsAccess({...invoice,refunds:[{value:1}]},'monthly'),'Partial refunds revoke the invoice entitlement');
+  check(!paymentGrantsAccess({...invoice,value:0.99},'monthly')&&!paymentGrantsAccess({...invoice,deleted:true},'monthly'),'Tampered amount and deleted payment never grant access');
+  const token='local-webhook-test-token-32-characters';
+  check(validWebhookToken(token,token)&&!validWebhookToken('incorrect',token)&&!validWebhookToken(null,token)&&!validWebhookToken(token,undefined),'Webhook authentication fails closed');
   const now = new Date('2026-10-08T15:00:00Z'), period = { startsAt: new Date('2026-10-01T03:00:00Z'), endsAt: new Date('2026-11-01T03:00:00Z') };
   check(premiumPlan('monthly').amountCents === 990 && premiumPlan('annual').amountCents === 4990, 'Prices fixed in centavos');
   assert.throws(() => premiumPlan({ amount: 1 })); checks++;
@@ -57,7 +69,7 @@ async function main() {
   process.env.ASAAS_ENVIRONMENT = 'production'; process.env.BETTER_AUTH_URL = 'http://localhost:3000';
   await rejects(() => asaas.createRecurringCheckout(input), e => e.status === 503, 'Production callbacks require HTTPS');
   process.env.BETTER_AUTH_URL = 'https://pulso.example'; response = {};
-  await rejects(() => asaas.createRecurringCheckout(input), e => e.status === 400, 'Missing checkout ID cannot become an undefined payment link');
+  await rejects(() => asaas.createRecurringCheckout(input), e => e.status === 502, 'Missing checkout ID cannot become an undefined payment link');
   status = 401; response = { errors: [{ description: 'Private provider detail' }] };
   await rejects(() => asaas.readPayment('pay_1'), e => e.status === 401 && !e.message.includes('Private'), 'Provider details not exposed in errors');
   console.log(`${checks} billing foundation checks passed. No real provider requests or charges.`);

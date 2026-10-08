@@ -350,3 +350,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .install-steps svg { display: inline-block; vertical-align: middle; }
 .hub-content { padding-bottom: 95px; }
 @media (max-width: 760px) { .challenge-management { font-size: 10px; } .challenge-management button { font-size: 11px; padding: 10px; } .hub-content { padding-bottom: 100px; } .install-app-button { right: 17px; font-size: 11px; } }
+
+.premium-panel { margin: 18px 0; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--ink); }
+.premium-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.premium-heading > span { margin-left: auto; font-size: 13px; color: var(--soft-ink); }
+.premium-panel p { font-size: 14px; line-height: 1.6; }
+.premium-options, .premium-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.premium-options small { flex-basis: 100%; line-height: 1.6; color: var(--soft-ink); }
+.premium-panel .text-button { background: transparent; border: 0; color: var(--ink); text-decoration: underline; cursor: pointer; padding: 10px; }
+@media(max-width:600px) { .premium-options > button { width: 100%; } .premium-heading > span { margin-left: 0; } }

@@ -22,7 +22,7 @@ export function RecordModal({ challenges, onClose, onSaved }: { challenges: Chal
   const [stage, setStage] = useState(''), [error, setError] = useState('')
   const [proof, setProof] = useState<{ file: File; pathname: string; captureToken: string } | null>(null)
   const submitting = stage !== ''
-  const eligible = challenges.filter(challenge => challenge.modality === modality && recordDate >= challenge.startDate && recordDate <= challenge.endDate)
+  const eligible = challenges.filter(challenge => challenge.modality === modality && challenge.billing?.canTrain !== false && recordDate >= challenge.startDate && recordDate <= challenge.endDate)
   const sameModality = challenges.filter(challenge => challenge.modality === modality)
   const displayDate = (value: string) => value.split('-').reverse().join('/')
   const acceptPhoto = useCallback((captured: CapturedPhoto | null) => { setPhoto(captured); setProof(null); setError('') }, [])
@@ -47,6 +47,7 @@ export function RecordModal({ challenges, onClose, onSaved }: { challenges: Chal
     setError('')
     let values
     try {
+      if (modality === 'cardio' && challenges.some(c => c.billing?.enabled) && eligible.length === 0) throw new Error('Escolha uma data dentro de um desafio de cardio com Premium ativo. O administrador pode ativá-lo na página do desafio.')
       if (!photo || !file) throw new Error('Tire uma foto do seu treino para continuar.')
       if (file.size > 8 * 1024 * 1024) throw new Error('A foto deve ter até 8 MB. Escolha uma imagem menor.')
       values = modality === 'strength' ? {} : parseRecordInput({ minutes, kilometers: km, pace })

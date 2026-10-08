@@ -64,7 +64,7 @@ async function main() {
       await client.query(fs.readFileSync(path.join(project, 'supabase/migrations', file), 'utf8'));
     }
     await client.query('COMMIT');
-    console.log('PostgreSQL ready; 7 application tables initialized. Existing tables preserved.');
+    console.log('PostgreSQL ready; application schema and migrations applied. Existing data preserved.');
   } catch (error) { await client.query('ROLLBACK'); throw error; }
   finally { await client.end(); }
 }

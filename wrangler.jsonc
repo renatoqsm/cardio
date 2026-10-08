@@ -25,6 +25,8 @@
     "STORAGE_BACKEND": "supabase",
     "SUPABASE_STORAGE_BUCKET": "cardio-proofs",
     "BETTER_AUTH_URL": "https://cardio.renatoqsousam.workers.dev",
-    "SUPABASE_URL": "https://qysdfwnbrsllrdjrmwgl.supabase.co"
+    "SUPABASE_URL": "https://qysdfwnbrsllrdjrmwgl.supabase.co",
+    "BILLING_ENABLED": "false",
+    "ASAAS_ENVIRONMENT": "production"
   }
 }
