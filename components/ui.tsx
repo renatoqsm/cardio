@@ -26,5 +26,6 @@ export function Dialog({ title, children, onClose, wide = false }: { title: stri
     document.addEventListener('keydown', keyboard)
     return () => { document.body.style.overflow = overflow; document.removeEventListener('keydown', keyboard); previous?.focus() }
   }, [])
+  useEffect(() => { ref.current?.focus() }, [title])
   return <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`dialog ${wide ? 'dialog-wide' : ''}`}><header className="dialog-heading"><h2>{title}</h2><button type="button" className="icon-button" onClick={onClose} aria-label="Fechar"><X size={20} /></button></header>{children}</div></div>
 }

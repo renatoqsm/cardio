@@ -141,11 +141,12 @@ async function main() {
   const strengthRecord = { action: 'record', modality: 'strength', recordDate: '2026-10-10', proofPathname: strengthPath, description: 'Treino de pernas', minutes: 999, kilometers: 999 };
   const concurrent = await Promise.all(Array.from({ length: 3 }, () => post('/api/challenges', { ...strengthRecord, submissionKey: crypto.randomUUID() }, owner.cookie)));
   const concurrentBodies = await Promise.all(concurrent.map(r => r.json()));
-  check(concurrent.every(r => r.ok) && new Set(concurrentBodies.map(r => r.record?.id)).size === 1 && concurrentBodies.filter(r => !r.alreadyPublished).length === 1, 'Concurrent different submissions produce exactly one daily strength check-in');
-  check(concurrentBodies.every(r => strengthGroups.slice(0, 2).every(c => r.countedChallengeIds.includes(c.id)) && !r.countedChallengeIds.includes(strengthGroups[2].id) && cardioGroups.every(c => !r.countedChallengeIds.includes(c.id))), 'Strength counts in all eligible strength challenges only');
-  check(concurrentBodies.every(r => r.record.minutes === 0 && Number(r.record.kilometers) === 0 && r.record.pace === null), 'Cardio metrics cannot influence strength ranking');
-  const duplicate = await (await post('/api/challenges', { ...strengthRecord, submissionKey: crypto.randomUUID(), description: 'Must not replace' }, owner.cookie)).json();
-  check(duplicate.alreadyPublished && duplicate.record.description === strengthRecord.description, 'Second daily strength check-in preserves original record');
+  check(concurrent.filter(r => r.ok).length === 1 && concurrent.filter(r => r.status === 409).length === 2 && new Set(concurrentBodies.map(r => r.record?.id ?? r.existingRecord?.id)).size === 1, 'Concurrent strength submissions create one check-in and ask confirmation for duplicates');
+  check(concurrentBodies.filter(r => r.record).every(r => strengthGroups.slice(0, 2).every(c => r.countedChallengeIds.includes(c.id)) && !r.countedChallengeIds.includes(strengthGroups[2].id) && cardioGroups.every(c => !r.countedChallengeIds.includes(c.id))), 'Strength counts in all eligible strength challenges only');
+  check(concurrentBodies.filter(r => r.record).every(r => r.record.minutes === 0 && Number(r.record.kilometers) === 0 && r.record.pace === null), 'Cardio metrics cannot influence strength ranking');
+  const duplicateResponse = await post('/api/challenges', { ...strengthRecord, submissionKey: crypto.randomUUID(), description: 'Must not replace' }, owner.cookie);
+  const duplicate = await duplicateResponse.json();
+  check(duplicateResponse.status === 409 && duplicate.code === 'STRENGTH_CHECKIN_EXISTS' && duplicate.existingRecord.id === concurrentBodies.find(r => r.record).record.id, 'Second daily check-in requires explicit replacement confirmation');
   check((await request(strengthPath, {}, member.cookie)).status === 404, 'Cardio membership does not grant strength-only proof access');
   check((await post('/api/challenges', { action: 'join', joinCode: strengthGroups[0].joinCode }, member.cookie)).ok, 'Member joins strength challenge');
   check((await request(strengthPath, {}, member.cookie)).status === 200, 'Strength membership grants strength proof access');
@@ -167,9 +168,39 @@ async function main() {
   }
   const outsideStrength = await (await request('/api/challenges?challengeId=' + strengthGroups[2].id, {}, owner.cookie)).json();
   check(outsideStrength.feed.length === 0 && outsideStrength.leaderboard[0].checkIns === 0, 'Strength honors challenge period');
+  check((await request('/api/records?recordDate=2026-10-10')).status === 401, 'Anonymous daily lookup denied');
+  check((await request('/api/records?recordDate=2026-02-30', {}, owner.cookie)).status === 400, 'Daily lookup rejects invalid dates');
+  const lookup = await (await request('/api/records?recordDate=2026-10-10', {}, owner.cookie)).json();
+  check(lookup.existingRecord.id === duplicate.existingRecord.id, 'Daily lookup works independently of challenges');
+  const ownMemberLookup = await (await request('/api/records?recordDate=2026-10-10', {}, member.cookie)).json();
+  check(ownMemberLookup.existingRecord.id !== lookup.existingRecord.id, 'Daily lookup returns only own check-in');
+  const noRecord = await (await request('/api/records?recordDate=2026-10-12', {}, owner.cookie)).json();
+  check(noRecord.existingRecord === null, 'Other date does not trigger replacement');
+  const replacement = { ...strengthRecord, submissionKey: crypto.randomUUID(), description: 'Treino substituído com confirmação', proofPathname: pathname, replaceExisting: true, replaceRecordId: lookup.existingRecord.id, expectedSubmissionKey: lookup.existingRecord.submissionKey };
+  const replacedResponse = await post('/api/challenges', replacement, owner.cookie);
+  check(replacedResponse.ok, 'Confirmed replacement saved'); const replaced = await replacedResponse.json();
+  check(replaced.replaced && replaced.record.id === lookup.existingRecord.id && replaced.record.description === replacement.description && replaced.record.proofPathname === pathname, 'Replacement updates photo/description and preserves check-in identity/date');
+  const retriedReplacement = await (await post('/api/challenges', replacement, owner.cookie)).json();
+  check(retriedReplacement.replaced && retriedReplacement.alreadyPublished && retriedReplacement.record.id === replaced.record.id, 'Confirmed replacement retry is idempotent');
+  const staleReplacement = await post('/api/challenges', { ...replacement, submissionKey: crypto.randomUUID(), description: 'Stale overwrite' }, owner.cookie);
+  const stale = await staleReplacement.json();
+  check(staleReplacement.status === 409 && stale.existingRecord.submissionKey === replacement.submissionKey, 'Stale confirmation cannot overwrite newer replacement');
+  const conflicting = await Promise.all([1, 2].map(i => post('/api/challenges', { ...replacement, submissionKey: crypto.randomUUID(), description: 'Concurrent replacement ' + i, expectedSubmissionKey: replacement.submissionKey }, owner.cookie)));
+  check(conflicting.filter(r => r.ok).length === 1 && conflicting.filter(r => r.status === 409).length === 1, 'Concurrent replacements require fresh consent after first update');
+  const foreignReplace = await post('/api/challenges', { ...replacement, submissionKey: crypto.randomUUID(), replaceRecordId: ownMemberLookup.existingRecord.id, expectedSubmissionKey: ownMemberLookup.existingRecord.submissionKey }, owner.cookie);
+  check(foreignReplace.status === 409, 'Cannot replace another person check-in');
+  const memberAfter = await (await request('/api/records?recordDate=2026-10-10', {}, member.cookie)).json();
+  check(memberAfter.existingRecord.submissionKey === ownMemberLookup.existingRecord.submissionKey, 'Another person check-in remains unchanged');
+  check((await post('/api/challenges', { ...record, replaceExisting: true, replaceRecordId: lookup.existingRecord.id, expectedSubmissionKey: replacement.submissionKey }, owner.cookie)).status === 400, 'Cardio cannot use strength replacement');
+  for (const c of strengthGroups.slice(0, 2)) {
+    const data = await (await request('/api/challenges?challengeId=' + c.id, {}, owner.cookie)).json();
+    check(data.leaderboard.find(m => m.id === owner.id).checkIns === 2 && data.feed.filter(r => r.userId === owner.id && r.recordDate === '2026-10-10').length === 1, 'Replacement preserves daily total in ' + c.name);
+  }
   const noChallenge = await post('/api/challenges', { ...strengthRecord, proofPathname: foreignPath, submissionKey: crypto.randomUUID() }, outsider.cookie);
   check(noChallenge.ok, 'Global strength record allowed without any challenge');
   check((await noChallenge.json()).countedChallengeIds.length === 0, 'No-challenge publication does not leak or count in other groups');
+  const globalLookup = await (await request('/api/records?recordDate=2026-10-10', {}, outsider.cookie)).json();
+  check(globalLookup.existingRecord?.recordDate === '2026-10-10', 'Daily duplicate lookup works without challenge membership');
   check((await post('/api/challenges', { ...record, modality: 'invalid', submissionKey: crypto.randomUUID() }, owner.cookie)).status === 400, 'Unknown record modality rejected');
   check((await post('/api/challenges', { ...strengthRecord, proofPathname: foreignPath, submissionKey: crypto.randomUUID() }, owner.cookie)).status === 400, 'Strength cannot claim another person proof');
   check((await post('/api/challenges', strengthRecord)).status === 401, 'Anonymous strength check-in denied');

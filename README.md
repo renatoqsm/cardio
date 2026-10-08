@@ -25,8 +25,12 @@ fim. Fora desses períodos, o registro é salvo sem alterar esses rankings.
 
 Cardio aceita vários registros no mesmo dia, com ranking por distância,
 tempo ou pace. Musculação aceita um único check-in por pessoa/data, garantido
-por índice único no banco mesmo com envios simultâneos. Reenvios preservam
-o registro existente. Seu ranking usa somente o total de check-ins diários;
+por índice único no banco mesmo com envios simultâneos. Reenvios da mesma
+publicação preservam o registro existente. Ao tentar
+adicionar outro treino de musculação na mesma data, o app pergunta se você
+deseja substituí-lo. Cancelar mantém o anterior; confirmar permite trocar
+foto e descrição, mantendo um único check-in nos desafios. Uma alteração em
+outra aba exige nova confirmação. Seu ranking usa somente o total de check-ins diários;
 empates têm a mesma posição. Após o fim, o ranking mostra o vencedor ou os
 líderes empatados. Feed, fotos privadas e estatísticas respeitam a modalidade.
 

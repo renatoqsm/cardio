@@ -318,3 +318,5 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .challenge-result strong, .challenge-result small { display: block; }
 .challenge-result small { margin-top: 5px; font-size: 12px; color: #63745a; }
 @media (max-width: 400px) { .modality-options { gap: 10px; } .modality-option { padding: 19px 13px; } .modality-option strong { font-size: 18px; } .topbar-actions { gap: 3px; } .mobile-user .avatar { display: none; } .feed-metrics .strength-metric { font-size: 16px; } }
+.replacement-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+.replacement-actions > button { flex: 1; min-width: 140px; }

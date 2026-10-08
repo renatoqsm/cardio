@@ -4,10 +4,13 @@ import { ArrowLeft, Dumbbell, Flame, Upload } from 'lucide-react'
 import { parseRecordInput } from '@/lib/record-input'
 import { localDate } from '@/lib/client'
 import { Dialog } from './ui'
-import type { Challenge, Modality, RecordPublication } from '@/lib/hub-types'
+import type { Challenge, ExistingStrengthRecord, Modality, RecordPublication } from '@/lib/hub-types'
 
 export function RecordModal({ challenges, onClose, onSaved }: { challenges: Challenge[]; onClose: () => void; onSaved: (result: RecordPublication) => void }) {
   const [modality, setModality] = useState<Modality | null>(null)
+  const [existing, setExisting] = useState<ExistingStrengthRecord | null>(null)
+  const [replacement, setReplacement] = useState<ExistingStrengthRecord | null>(null)
+  const [checking, setChecking] = useState(false)
   const [submissionKey] = useState(() => crypto.randomUUID())
   const [recordDate, setRecordDate] = useState(() => localDate())
   const [activityType, setActivityType] = useState('Cardio')
@@ -26,12 +29,28 @@ export function RecordModal({ challenges, onClose, onSaved }: { challenges: Chal
     setPreview(url)
     return () => URL.revokeObjectURL(url)
   }, [file])
+  useEffect(() => {
+    setExisting(null); setReplacement(null)
+    if (modality !== 'strength' || !recordDate) { setChecking(false); return }
+    const controller = new AbortController()
+    setChecking(true)
+    void (async () => {
+      try {
+        const response = await fetch(`/api/records?recordDate=${encodeURIComponent(recordDate)}`, { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) })
+        if (!response.ok) throw new Error('Não foi possível verificar o check-in. A publicação fará uma nova verificação.')
+        const result = await response.json()
+        if (!controller.signal.aborted) setExisting(result.existingRecord)
+      } catch (error) { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : 'Não foi possível verificar o check-in.') }
+      finally { if (!controller.signal.aborted) setChecking(false) }
+    })()
+    return () => controller.abort()
+  }, [modality, recordDate])
   const submit = async () => {
-    if (submitting) return
+    if (submitting || checking) return
     setError('')
     let values
     try {
-      if (!file) throw new Error('Tire uma foto do seu cardio para continuar.')
+      if (!file) throw new Error('Tire uma foto do seu treino para continuar.')
       if (file.size > 8 * 1024 * 1024) throw new Error('A foto deve ter até 8 MB. Escolha uma imagem menor.')
       values = modality === 'strength' ? {} : parseRecordInput({ minutes, kilometers: km, pace })
     } catch (validationError) { setError((validationError as Error).message); return }
@@ -55,10 +74,11 @@ export function RecordModal({ challenges, onClose, onSaved }: { challenges: Chal
       setStage('Publicando treino...')
       const response = await fetch('/api/challenges', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-        body: JSON.stringify({ action: 'record', modality, recordDate, ...values, description, activityType, submissionKey, proofPathname: pathname }),
+        body: JSON.stringify({ action: 'record', modality, recordDate, ...values, description, activityType, submissionKey, proofPathname: pathname, ...(replacement ? { replaceExisting: true, replaceRecordId: replacement.id, expectedSubmissionKey: replacement.submissionKey } : {}) }),
       })
       if (!response.ok) {
         const result = await response.json().catch(() => null)
+        if (response.status === 409 && result?.code === 'STRENGTH_CHECKIN_EXISTS' && result.existingRecord) { setExisting(result.existingRecord); setReplacement(null); return }
         throw new Error(responseError(response.status, result?.error || 'Não foi possível publicar o treino. Tente novamente.'))
       }
       const result: RecordPublication = await response.json()
@@ -70,9 +90,11 @@ export function RecordModal({ challenges, onClose, onSaved }: { challenges: Chal
     } finally { window.clearTimeout(timeout); setStage('') }
   }
   if (!modality) return <Dialog title="Adicionar registro" onClose={onClose}><p className="muted editor-intro">O que você treinou? Um registro conta em todos os seus desafios da mesma modalidade, dentro do período de cada um.</p><div className="modality-options"><button className="modality-option" onClick={() => setModality('cardio')}><Flame size={30} /><strong>Cardio</strong><span>Corrida, caminhada, bike e mais.<br />Vários registros por dia.</span></button><button className="modality-option" onClick={() => setModality('strength')}><Dumbbell size={30} /><strong>Musculação</strong><span>Um check-in por dia.<br />A constância soma no ranking.</span></button></div></Dialog>
-  return <Dialog title={modality === 'strength' ? 'Check-in de musculação' : 'Registrar cardio'} onClose={onClose}>
+  if (existing) return <Dialog title="Substituir treino de musculação?" onClose={onClose}><p className="editor-intro">Você já registrou um treino de musculação {recordDate === localDate() ? 'hoje' : `em ${displayDate(recordDate)}`}, deseja substituí-lo?</p><p className="muted editor-intro">A nova foto e descrição substituirão o treino anterior. O ranking continuará contando apenas um check-in nesse dia.</p><div className="replacement-actions"><button className="button secondary" onClick={onClose}>Manter treino anterior</button><button className="button primary" onClick={() => { setReplacement(existing); setExisting(null); setError('') }}>Sim, substituir</button></div></Dialog>
+  return <Dialog title={modality === 'strength'  ? 'Check-in de musculação' : 'Registrar cardio'} onClose={onClose}>
     <button type="button" className="text-button" disabled={submitting} onClick={() => { setModality(null); setError('') }}><ArrowLeft size={15} />Trocar modalidade</button>
     <p className="mb-4 text-sm text-[#7b877e]">{modality === 'strength' ? 'Foto, data e uma descrição opcional. Você pode fazer um check-in de musculação por dia.' : 'Registre tempo, distância e sua foto. Você pode adicionar vários cardios por dia.'}</p>
+    {replacement && <p className="period-warning" role="status">Você está substituindo o treino de musculação de {displayDate(recordDate)}. O anterior será mantido até salvar a nova foto e descrição.</p>}
     <form onSubmit={event => { event.preventDefault(); void submit() }} className="flex flex-col gap-3" aria-busy={submitting}>
       <label className="block cursor-pointer overflow-hidden rounded-xl border border-dashed border-[#b9d65d] bg-[#f8fbeF] text-center text-sm font-bold text-[#6f8d19]">
         {preview ? <img src={preview} alt="Prévia do comprovante" className="aspect-[4/3] w-full object-cover" /> : <div className="p-6"><Upload className="mx-auto mb-2 size-6" /><span>Tirar foto do comprovante</span><span className="mt-1 block text-[11px] font-normal text-[#829087]">A câmera do celular será aberta</span></div>}
@@ -85,7 +107,7 @@ export function RecordModal({ challenges, onClose, onSaved }: { challenges: Chal
       <div className={eligible.length ? 'record-destinations' : 'period-warning'} role="status">{eligible.length ? <><strong>Conta em {eligible.length} {eligible.length === 1 ? 'desafio' : 'desafios'} de {modality === 'strength' ? 'musculação' : 'cardio'}</strong><span>{eligible.map(challenge => challenge.name).join(' · ')}</span></> : <><strong>Sem desafios elegíveis nesta data.</strong><span>O treino será salvo. {sameModality.length ? 'Confira os períodos abaixo; esta data fica fora deles.' : 'Você ainda não participa de desafios desta modalidade.'}</span></>}{sameModality.length > 0 && <details><summary>Ver períodos dos desafios</summary>{sameModality.map(challenge => <p key={challenge.id}>{challenge.name}: {displayDate(challenge.startDate)} a {displayDate(challenge.endDate)}</p>)}</details>}</div>
       <textarea aria-label="Descrição" disabled={submitting} className="min-h-20 rounded-lg border px-3 py-2 text-sm" placeholder="Descrição (opcional)" value={description} onChange={event => setDescription(event.target.value)} />
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-      <button disabled={submitting} type="submit" className="button primary full">{stage || (modality === 'strength' ? 'Fazer check-in' : 'Publicar no feed')}</button>
+      <button disabled={submitting || checking} type="submit" className="button primary full">{stage || (checking ? 'Verificando check-in...' : replacement ? 'Substituir treino' : modality === 'strength' ? 'Fazer check-in' : 'Publicar no feed')}</button>
     </form>
   </Dialog>
 }

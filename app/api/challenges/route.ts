@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
-import { and, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte, or, isNull, sql } from 'drizzle-orm'
 import { getAuth } from '@/lib/auth'
 import { getDatabase, withDatabase } from '@/lib/db'
 import { readProof, validFilename } from '@/lib/storage'
@@ -102,11 +102,36 @@ export const POST = withDatabase(async (request: Request) => {
       if (body.submissionKey != null && (typeof body.submissionKey !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.submissionKey))) throw new RequestError('Identificador de publicação inválido. Abra o formulário novamente.')
       const submissionKey = body.submissionKey || `proof:${pathname}`
       const record = { id: id(), challengeId: null, userId: me.id, modality, submissionKey, recordDate: body.recordDate, ...values, activityType: modality === 'strength' ? 'Musculação' : typeof body.activityType === 'string' ? body.activityType.slice(0, 40) : 'Cardio', proofPathname: pathname, description: typeof body.description === 'string' ? body.description.trim().slice(0, 1500) || null : null, createdAt: new Date() }
-      const [created] = await db.insert(cardioRecord).values(record).onConflictDoNothing().returning()
-      const saved = created ?? (await db.select().from(cardioRecord).where(and(eq(cardioRecord.userId, me.id), or(eq(cardioRecord.submissionKey, submissionKey), ...(modality === 'strength' ? [and(eq(cardioRecord.modality, 'strength'), eq(cardioRecord.recordDate, body.recordDate))!] : [])))))[0]
-      if (!saved || saved.modality !== modality) throw new RequestError('Esta publicação já foi concluída. Abra um novo registro.', 409)
+      const confirmation = (existing: typeof cardioRecord.$inferSelect) => NextResponse.json({
+        code: 'STRENGTH_CHECKIN_EXISTS', error: 'Você já registrou um treino de musculação nessa data. Deseja substituí-lo?',
+        existingRecord: { id: existing.id, submissionKey: existing.submissionKey, recordDate: existing.recordDate },
+      }, { status: 409 })
+      let saved: typeof cardioRecord.$inferSelect
+      let alreadyPublished = false, replaced = false
+      if (body.replaceExisting === true) {
+        if (modality !== 'strength' || typeof body.replaceRecordId !== 'string' || !(body.expectedSubmissionKey === null || typeof body.expectedSubmissionKey === 'string')) throw new RequestError('Confirme o treino de musculação que deseja substituir.')
+        const [retry] = await db.select().from(cardioRecord).where(and(eq(cardioRecord.userId, me.id), eq(cardioRecord.submissionKey, submissionKey)))
+        if (retry) {
+          if (retry.id !== body.replaceRecordId || retry.modality !== 'strength' || retry.recordDate !== body.recordDate) throw new RequestError('Esta publicação já foi concluída. Abra um novo registro.', 409)
+          saved = retry; alreadyPublished = true; replaced = true
+        } else {
+          const [updated] = await db.update(cardioRecord).set({ proofPathname: pathname, description: record.description, submissionKey }).where(and(eq(cardioRecord.id, body.replaceRecordId), eq(cardioRecord.userId, me.id), eq(cardioRecord.modality, 'strength'), eq(cardioRecord.recordDate, body.recordDate), body.expectedSubmissionKey === null ? isNull(cardioRecord.submissionKey) : eq(cardioRecord.submissionKey, body.expectedSubmissionKey))).returning()
+          if (!updated) {
+            const [current] = await db.select().from(cardioRecord).where(and(eq(cardioRecord.userId, me.id), eq(cardioRecord.modality, 'strength'), eq(cardioRecord.recordDate, body.recordDate)))
+            if (current?.id === body.replaceRecordId && current.submissionKey === submissionKey) { saved = current; alreadyPublished = true; replaced = true }
+            else if (current) return confirmation(current)
+            else throw new RequestError('O treino original não está mais disponível. Abra um novo registro.', 409)
+          } else { saved = updated; replaced = true }
+        }
+      } else {
+        const [created] = await db.insert(cardioRecord).values(record).onConflictDoNothing().returning()
+        const existing = created ?? (await db.select().from(cardioRecord).where(and(eq(cardioRecord.userId, me.id), or(eq(cardioRecord.submissionKey, submissionKey), ...(modality === 'strength' ? [and(eq(cardioRecord.modality, 'strength'), eq(cardioRecord.recordDate, body.recordDate))!] : [])))))[0]
+        if (!existing || existing.modality !== modality) throw new RequestError('Esta publicação já foi concluída. Abra um novo registro.', 409)
+        if (!created && modality === 'strength' && existing.submissionKey !== submissionKey) return confirmation(existing)
+        saved = existing; alreadyPublished = !created
+      }
       const counted = await db.select({ id: challenge.id }).from(challengeMember).innerJoin(challenge, eq(challengeMember.challengeId, challenge.id)).where(and(eq(challengeMember.userId, me.id), eq(challenge.modality, saved.modality), lte(challenge.startDate, saved.recordDate), gte(challenge.endDate, saved.recordDate)))
-      return NextResponse.json({ record: saved, alreadyPublished: !created, countedChallengeIds: counted.map(item => item.id) })
+      return NextResponse.json({ record: saved, alreadyPublished, replaced, countedChallengeIds: counted.map(item => item.id) })
     }
     throw new RequestError('Ação inválida')
   } catch (error) { return failure(error) }
