@@ -4,8 +4,9 @@ import { Upload } from 'lucide-react'
 import { parseRecordInput } from '@/lib/record-input'
 import { localDate } from '@/lib/client'
 import { Dialog } from './ui'
+import type { Challenge, RecordPublication } from '@/lib/hub-types'
 
-export function RecordModal({ onClose, onSaved }: any) {
+export function RecordModal({ challenge, onClose, onSaved }: { challenge: Challenge | null; onClose: () => void; onSaved: (result: RecordPublication) => void }) {
   const [submissionKey] = useState(() => crypto.randomUUID())
   const [recordDate, setRecordDate] = useState(() => localDate())
   const [activityType, setActivityType] = useState('Cardio')
@@ -15,6 +16,8 @@ export function RecordModal({ onClose, onSaved }: any) {
   const [preview, setPreview] = useState(''), [stage, setStage] = useState(''), [error, setError] = useState('')
   const [proof, setProof] = useState<{ file: File; pathname: string } | null>(null)
   const submitting = stage !== ''
+  const outsidePeriod = challenge && recordDate && (recordDate < challenge.startDate || recordDate > challenge.endDate)
+  const displayDate = (value: string) => value.split('-').reverse().join('/')
   useEffect(() => {
     if (!file) { setPreview(''); return }
     const url = URL.createObjectURL(file)
@@ -56,7 +59,8 @@ export function RecordModal({ onClose, onSaved }: any) {
         const result = await response.json().catch(() => null)
         throw new Error(responseError(response.status, result?.error || 'Não foi possível publicar o treino. Tente novamente.'))
       }
-      onSaved()
+      const result: RecordPublication = await response.json()
+      onSaved(result)
     } catch (submissionError) {
       setError(controller.signal.aborted ? 'O envio demorou demais. Confira sua conexão e tente novamente.'
         : submissionError instanceof TypeError ? 'Não foi possível conectar. Confira sua conexão e tente novamente.'
@@ -64,7 +68,7 @@ export function RecordModal({ onClose, onSaved }: any) {
     } finally { window.clearTimeout(timeout); setStage('') }
   }
   return <Dialog title="Registrar cardio" onClose={onClose}>
-    <p className="mb-4 text-sm text-[#7b877e]">Mais um treino, mais um passo. Todos os registros no período somam nos seus desafios.</p>
+    <p className="mb-4 text-sm text-[#7b877e]">{challenge ? <>Para o ranking de <strong>{challenge.name}</strong>, a data do treino deve estar entre {displayDate(challenge.startDate)} e {displayDate(challenge.endDate)}, inclusive.</> : <>Mais um treino, mais um passo. Todos os registros no período somam nos seus desafios.</>}</p>
     <form onSubmit={event => { event.preventDefault(); void submit() }} className="flex flex-col gap-3" aria-busy={submitting}>
       <label className="block cursor-pointer overflow-hidden rounded-xl border border-dashed border-[#b9d65d] bg-[#f8fbeF] text-center text-sm font-bold text-[#6f8d19]">
         {preview ? <img src={preview} alt="Prévia do comprovante" className="aspect-[4/3] w-full object-cover" /> : <div className="p-6"><Upload className="mx-auto mb-2 size-6" /><span>Tirar foto do comprovante</span><span className="mt-1 block text-[11px] font-normal text-[#829087]">A câmera do celular será aberta</span></div>}
@@ -80,6 +84,7 @@ export function RecordModal({ onClose, onSaved }: any) {
         <label className="field">Data do treino<input aria-label="Data do treino" type="date" value={recordDate} disabled={submitting} onChange={event => setRecordDate(event.target.value)} /></label>
         <label className="field">Atividade<select aria-label="Atividade" value={activityType} disabled={submitting} onChange={event => setActivityType(event.target.value)}><option>Cardio</option><option>Corrida</option><option>Caminhada</option><option>Bicicleta</option><option>Elíptico</option><option>Natação</option></select></label>
       </div>
+      {outsidePeriod && <p role="status" className="period-warning">A data escolhida fica fora do período de {challenge!.name}. O treino será salvo, mas não aparecerá no feed nem somará no ranking deste desafio. Confira a data antes de publicar.</p>}
       <input aria-label="Pace" disabled={submitting} className="h-11 rounded-lg border px-3 text-sm" placeholder="Pace (opcional): 6:30 ou 6,5" value={pace} onChange={event => setPace(event.target.value)} />
       <textarea aria-label="Descrição" disabled={submitting} className="min-h-20 rounded-lg border px-3 py-2 text-sm" placeholder="Descrição (opcional)" value={description} onChange={event => setDescription(event.target.value)} />
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}

@@ -53,7 +53,9 @@ async function main() {
   const record = { submissionKey: crypto.randomUUID(), action: 'record', recordDate: '2026-10-07', minutes: 30, kilometers: '5,0', pace: '6:30', proofPathname: pathname };
   const saved = await post('/api/challenges', record, owner.cookie);
   check(saved.ok, `Cardio record saved${saved.ok ? '' : ': ' + (await saved.json()).error}`);
-  const first = (await saved.json()).record;
+  const publication = await saved.json();
+  const first = publication.record;
+  check(publication.countedChallengeIds.includes(challenge.id), 'Publication confirms challenge inclusion');
   check(Number(first.pace) === 6.5, 'Pace in minutes/seconds stored correctly');
   const retries = await Promise.all([post('/api/challenges', record, owner.cookie), post('/api/challenges', record, owner.cookie)]);
   const retried = await Promise.all(retries.map(r => r.json()));
@@ -102,6 +104,21 @@ async function main() {
     if (status === 200) check(Buffer.from(await proof.arrayBuffer()).equals(png), label + ' image bytes preserved');
   }
   check((await request(`/api/proofs/${owner.id}/invalid.png`, {}, owner.cookie)).status === 404, 'Invalid proof filename rejected');
+  const windowResponse = await post('/api/challenges', { action: 'create', name: 'Date boundaries', goalType: 'km', startDate: '2026-10-08', endDate: '2026-10-15' }, owner.cookie);
+  check(windowResponse.ok, 'Date-limited challenge created');
+  const windowChallenge = (await windowResponse.json()).challenge; challenges.push(windowChallenge.id);
+  const before = await (await request('/api/challenges?challengeId=' + windowChallenge.id, {}, owner.cookie)).json();
+  check(before.feed.length === 0 && before.leaderboard[0].kilometers === 0, 'October 7 workouts excluded from October 8 challenge');
+  const retriedOutside = await (await post('/api/challenges', { ...record, recordDate: '2026-10-08' }, owner.cookie)).json();
+  check(retriedOutside.alreadyPublished && !retriedOutside.countedChallengeIds.includes(windowChallenge.id), 'Retry reports inclusion using persisted workout date');
+  for (const [recordDate, minutes, kilometers, included] of [['2026-10-08', 10, 1, true], ['2026-10-15', 20, 2, true], ['2026-10-16', 30, 3, false]]) {
+    const result = await post('/api/challenges', { ...record, submissionKey: crypto.randomUUID(), recordDate, minutes, kilometers, pace: '' }, owner.cookie);
+    check(result.ok, 'Workout saved on ' + recordDate);
+    const body = await result.json();
+    check(body.countedChallengeIds.includes(windowChallenge.id) === included && body.countedChallengeIds.includes(challenge.id), 'Accurate inclusion per challenge on ' + recordDate);
+  }
+  const bounded = await (await request('/api/challenges?challengeId=' + windowChallenge.id, {}, owner.cookie)).json();
+  check(bounded.feed.length === 2 && bounded.leaderboard[0].kilometers === 3 && bounded.leaderboard[0].minutes === 30, 'Start/end inclusive; before/after dates excluded from ranking');
   check((await request('/api/challenges?challengeId=' + challenge.id, { method: 'DELETE' }, member.cookie)).status === 403, 'Member cannot delete owner challenge');
   check((await request('/api/challenges?challengeId=' + challenge.id, { method: 'DELETE' }, owner.cookie)).ok, 'Owner can delete challenge');
   const logout = await post('/api/auth/sign-out', {}, owner.cookie);

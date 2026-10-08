@@ -83,7 +83,7 @@ export default function Page() {
     </main>
     {(modal === 'create' || (modal === 'edit' && selected)) && <ChallengeEditor challenge={modal === 'edit' ? selected! : undefined} onClose={() => setModal(null)} onSaved={id => afterAction(modal === 'edit' ? 'Desafio atualizado. A cara da turma ficou ainda melhor.' : 'Desafio criado. Agora é só convidar a turma!', id)} />}
     {modal === 'join' && <JoinDialog onClose={() => setModal(null)} onJoined={id => afterAction('Você está na turma. Vamos nessa!', id)} />}
-    {modal === 'record' && <RecordModal onClose={() => setModal(null)} onSaved={() => afterAction('Mais um cardio na conta! O ranking foi atualizado.')} />}
+    {modal === 'record' && <RecordModal challenge={selected} onClose={() => setModal(null)} onSaved={result => afterAction(result.alreadyPublished ? 'Esse treino já estava salvo. Ele não foi contado duas vezes.' : selected && !result.countedChallengeIds?.includes(selected.id) ? `Treino salvo fora do período de “${selected.name}”. Não entrou no feed nem no ranking deste desafio.` : 'Mais um cardio na conta! O ranking foi atualizado.')} />}
     {photo && <Dialog title={`Treino de ${photo.name}`} onClose={() => setPhoto(null)} wide><img className="full-proof" src={photo.proofPathname} alt={`Comprovante do treino de ${photo.name}`} /><p className="photo-caption">{date(photo.recordDate, true)} · {photo.minutes} min · {number(Number(photo.kilometers), 2)} km</p></Dialog>}
   </div>
 }

@@ -17,7 +17,10 @@ ser filtrado para seus próprios treinos. Os membros têm busca, indicação do
 administrador e resumo da participação; o ranking mostra pódio e totais.
 
 É possível publicar vários cardios no mesmo dia. O ranking soma todos no
-período do desafio; reenvios da mesma publicação não duplicam o treino.
+período do desafio, incluindo as datas de início e fim; reenvios da mesma
+publicação não duplicam o treino. O formulário avisa quando a data está fora
+do período do desafio aberto. Ao salvar, confirma se o treino entrou nesse
+ranking ou foi preservado fora do período.
 O pace médio é ponderado pela distância, usando minutos/distância quando o
 pace não foi preenchido. Registros anteriormente substituídos pela antiga
 regra de um cardio por dia não podem ser recuperados automaticamente.

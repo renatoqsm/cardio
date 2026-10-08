@@ -98,7 +98,8 @@ export const POST = withDatabase(async (request: Request) => {
       const record = { id: id(), challengeId: null, userId: me.id, submissionKey, recordDate: body.recordDate, ...values, activityType: typeof body.activityType === 'string' ? body.activityType.slice(0, 40) : 'Cardio', proofPathname: pathname, description: typeof body.description === 'string' ? body.description.trim().slice(0, 1500) || null : null, createdAt: new Date() }
       const [created] = await db.insert(cardioRecord).values(record).onConflictDoNothing({ target: [cardioRecord.userId, cardioRecord.submissionKey] }).returning()
       const saved = created ?? (await db.select().from(cardioRecord).where(and(eq(cardioRecord.userId, me.id), eq(cardioRecord.submissionKey, submissionKey))))[0]
-      return NextResponse.json({ record: saved, alreadyPublished: !created })
+      const counted = await db.select({ id: challenge.id }).from(challengeMember).innerJoin(challenge, eq(challengeMember.challengeId, challenge.id)).where(and(eq(challengeMember.userId, me.id), lte(challenge.startDate, saved.recordDate), gte(challenge.endDate, saved.recordDate)))
+      return NextResponse.json({ record: saved, alreadyPublished: !created, countedChallengeIds: counted.map(item => item.id) })
     }
     throw new RequestError('Ação inválida')
   } catch (error) { return failure(error) }

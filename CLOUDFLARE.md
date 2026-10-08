@@ -14,10 +14,14 @@ A conexão PostgreSQL do Worker usa Hyperdrive com cache desativado, limite de
 cinco conexões à origem e TLS `verify-full`, confiando no certificado oficial
 Supabase Root 2021 CA. Isso corrige a falha `TLS Handshake Failed` da conexão
 direta pelo cliente do Worker. O binding `HYPERDRIVE` está em `wrangler.jsonc`.
-Em 07/10/2026, 50 verificações funcionais passaram na URL pública, incluindo
+Em 07/10/2026, 61 verificações funcionais passaram na URL pública, incluindo
 cadastro, login, saída, vários cardios no mesmo dia, proteção contra reenvios
 duplicados, totais do ranking, personalização e acesso privado às fotos do
 desafio. A migração preservou os registros e associações existentes.
+Os limites de data também foram validados: início e fim inclusivos, com
+exclusão dos treinos anteriores e posteriores. A publicação retorna os
+desafios em que o treino conta; o formulário avisa quando a data fica fora
+do período e a mensagem de confirmação respeita esse resultado.
 Feed, pódio, busca de membros, editor de fotos e layout móvel foram verificados
 no navegador local; os assets publicados e a navegação login/cadastro também
 foram verificados no navegador.
