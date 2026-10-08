@@ -340,3 +340,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .challenge-modality-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .challenge-modality-icon.cardio { color: #ba5b20; }
 .challenge-modality-icon.strength { color: #3b502a; }
+
+.challenge-management { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 15px 0 0; font-size: 11px; color: #7b8770; }
+.challenge-management button { display: inline-flex; align-items: center; gap: 7px; padding: 10px 13px; border: 1px solid #e1e6d9; border-radius: 10px; color: #80524a; background: #fff; flex-shrink: 0; }
+.button.danger { background: #934a40; color: white; }
+.install-app-button { position: fixed; right: 18px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 30; display: inline-flex; align-items: center; gap: 8px; padding: 12px 17px; background: #26351f; color: #fff; border: 1px solid #d4f96b; border-radius: 14px; box-shadow: 0 4px 18px #26351f26; font-size: 12px; font-weight: 700; }
+.install-steps { padding-left: 21px; margin: 16px 0 22px; font-size: 14px; color: #48543d; line-height: 1.7; }
+.install-steps li { margin: 9px 0; }
+.install-steps svg { display: inline-block; vertical-align: middle; }
+.hub-content { padding-bottom: 95px; }
+@media (max-width: 760px) { .challenge-management { font-size: 10px; } .challenge-management button { font-size: 11px; padding: 10px; } .hub-content { padding-bottom: 100px; } .install-app-button { right: 17px; font-size: 11px; } }

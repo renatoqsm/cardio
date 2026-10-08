@@ -58,7 +58,7 @@ export const DELETE = withDatabase(async (request: Request) => {
     if (!challengeId) throw new RequestError('Desafio não informado')
     if (!(await db.select({ id: challenge.id }).from(challenge).where(and(eq(challenge.id, challengeId), eq(challenge.ownerId, me.id))))[0]) throw new RequestError('Você não pode excluir este desafio', 403)
     await db.transaction(async tx => {
-      await tx.delete(cardioRecord).where(eq(cardioRecord.challengeId, challengeId))
+      await tx.update(cardioRecord).set({ challengeId: null }).where(eq(cardioRecord.challengeId, challengeId))
       await tx.delete(challengeMember).where(eq(challengeMember.challengeId, challengeId))
       await tx.delete(challenge).where(eq(challenge.id, challengeId))
     })
@@ -69,6 +69,14 @@ export const DELETE = withDatabase(async (request: Request) => {
 export const POST = withDatabase(async (request: Request) => {
   try {
     const me = await currentUser(), { db } = getDatabase(), body = await request.json()
+    if (body.action === 'leave') {
+      if (typeof body.challengeId !== 'string' || !body.challengeId) throw new RequestError('Desafio não informado')
+      const [membership] = await db.select({ ownerId: challenge.ownerId }).from(challengeMember).innerJoin(challenge, eq(challengeMember.challengeId, challenge.id)).where(and(eq(challengeMember.challengeId, body.challengeId), eq(challengeMember.userId, me.id)))
+      if (!membership) throw new RequestError('Você não participa deste desafio', 403)
+      if (membership.ownerId === me.id) throw new RequestError('O administrador não pode sair do próprio desafio. Use Excluir desafio.', 409)
+      await db.delete(challengeMember).where(and(eq(challengeMember.challengeId, body.challengeId), eq(challengeMember.userId, me.id)))
+      return NextResponse.json({ ok: true })
+    }
     if (body.action === 'join') {
       const found = await db.select().from(challenge).where(eq(challenge.joinCode, String(body.joinCode).trim().toUpperCase()))
       if (!found[0]) throw new RequestError('Chave não encontrada', 404)

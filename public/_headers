@@ -1,0 +1,4 @@
+# Cloudflare serves these public assets before the Next.js worker.
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Service-Worker-Allowed: /

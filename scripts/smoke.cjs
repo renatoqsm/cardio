@@ -30,6 +30,15 @@ async function signup(name) {
 async function main() {
   const page = await request('/');
   check(page.ok && (await page.text()).includes('Preparando seu espaço'), 'Application shell rendered');
+  const manifest = await (await request('/manifest.webmanifest')).json();
+  check(manifest.display === 'standalone' && manifest.start_url === '/' && manifest.scope === '/', 'Install manifest opens app in standalone mode');
+  for (const icon of manifest.icons) {
+    const image = await request(icon.src);
+    check(image.ok && image.headers.get('content-type')?.includes('image/png'), 'Install icon available: ' + icon.sizes + ' ' + icon.purpose);
+  }
+  const worker = await request('/sw.js');
+  check(worker.ok && worker.headers.get('cache-control')?.includes('no-store'), 'Service worker available without stale caching');
+  check((await request('/offline.html')).ok, 'Public offline page available');
   check((await request('/api/challenges')).status === 401, 'Anonymous challenges denied');
   const owner = await signup('Owner');
   const member = await signup('Member');
@@ -217,7 +226,29 @@ async function main() {
   check((await post('/api/challenges', { ...strengthRecord, proofPathname: foreignPath, submissionKey: crypto.randomUUID() }, owner.cookie)).status === 400, 'Strength cannot claim another person proof');
   check((await post('/api/challenges', strengthRecord)).status === 401, 'Anonymous strength check-in denied');
   check((await request('/api/challenges?challengeId=' + challenge.id, { method: 'DELETE' }, member.cookie)).status === 403, 'Member cannot delete owner challenge');
+  const leave = { action: 'leave', challengeId: challenge.id };
+  check((await post('/api/challenges', leave)).status === 401, 'Anonymous cannot leave challenges');
+  check((await post('/api/challenges', { action: 'leave' }, member.cookie)).status === 400, 'Leave requires a challenge');
+  check((await post('/api/challenges', leave, outsider.cookie)).status === 403, 'Outsider cannot remove another membership');
+  check((await post('/api/challenges', leave, owner.cookie)).status === 409, 'Administrator cannot abandon own challenge');
+  check((await post('/api/challenges', leave, member.cookie)).ok, 'Participant can leave challenge');
+  const afterLeave = await (await request('/api/challenges?challengeId=' + challenge.id, {}, owner.cookie)).json();
+  check(afterLeave.challenges.find(c => c.id === challenge.id).memberCount === 1 && !afterLeave.members.some(m => m.id === member.id), 'Leaving removes participant from members and ranking');
+  const memberGroups = await (await request('/api/challenges', {}, member.cookie)).json();
+  check(!memberGroups.challenges.some(c => c.id === challenge.id) && memberGroups.challenges.some(c => c.id === strengthGroups[0].id), 'Leaving affects only selected challenge');
+  check((await request(photos[0], {}, member.cookie)).status === 404, 'Former participant loses access to private challenge photo');
+  check((await request(memberPath, {}, member.cookie)).ok, 'Leaving preserves participant own photo');
+  check((await post('/api/challenges', { action: 'leave', challengeId: strengthGroups[0].id }, member.cookie)).ok, 'Participant can leave strength challenge');
+  const retainedCheckin = await (await request('/api/records?recordDate=2026-10-10', {}, member.cookie)).json();
+  check(retainedCheckin.existingRecord?.id === ownMemberLookup.existingRecord.id, 'Leaving preserves existing personal strength check-in');
+  check((await request(strengthPath, {}, member.cookie)).status === 404, 'Former participant loses access to other members strength photos');
+  check((await post('/api/challenges', { action: 'join', joinCode: challenge.joinCode }, member.cookie)).ok, 'Former participant can rejoin with challenge key');
+  const beforeDelete = await (await request('/api/challenges?challengeId=' + cardioGroups[0].id, {}, owner.cookie)).json();
   check((await request('/api/challenges?challengeId=' + challenge.id, { method: 'DELETE' }, owner.cookie)).ok, 'Owner can delete challenge');
+  const afterDelete = await (await request('/api/challenges?challengeId=' + cardioGroups[0].id, {}, owner.cookie)).json();
+  check(!afterDelete.challenges.some(c => c.id === challenge.id) && afterDelete.feed.length === beforeDelete.feed.length, 'Deleting a challenge preserves workouts in other challenges');
+  check((await request(pathname, {}, owner.cookie)).ok, 'Deleting a challenge preserves author photo');
+
   const logout = await post('/api/auth/sign-out', {}, owner.cookie);
   check(logout.ok && (await request('/api/challenges', {}, owner.cookie)).status === 401, 'Logout invalidates session');
   console.log(`${checks} functional checks passed.`);

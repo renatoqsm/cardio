@@ -122,3 +122,24 @@ O servidor vincula a foto enviada ao autor e ao gesto vigente usando uma
 assinatura com `BETTER_AUTH_SECRET`; não é necessário outro segredo. Isso
 não reconhece o gesto automaticamente nem comprova que houve exercício ou
 que o dispositivo usou uma câmera real. A conferência da foto é visual.
+
+## Participação e instalação
+
+Abaixo da apresentação do desafio, o administrador pode excluir o desafio e
+os participantes podem sair dele. Ambas as ações pedem confirmação. Sair retira
+a pessoa do ranking e dos membros; ela pode voltar com a chave. Excluir remove
+o desafio para todos. Treinos e fotos pessoais permanecem salvos, inclusive os
+registros antigos que ainda estavam vinculados diretamente ao desafio.
+O administrador precisa excluir seu desafio, pois não pode abandoná-lo.
+
+O botão **Instalar aplicativo** abre o pedido de instalação nos navegadores
+compatíveis. Se o navegador não disponibilizar esse pedido, o botão mostra os
+passos para instalar pelo menu do Chrome/Samsung Internet ou pelo Safari no
+iPhone. O Pulso abre como aplicativo, mantém a conta e recebe as atualizações
+do site. Não requer APK nem publicação em loja.
+
+O manifesto inclui ícones normais, adaptável para Android e para a tela inicial
+do iPhone. O service worker armazena somente a página pública de falta de conexão
+e os ícones. Desafios, fotos privadas e respostas de autenticação não são
+armazenados nesse cache. É necessário internet para acessar e publicar treinos;
+não há envio de registros offline.
