@@ -1,157 +1,124 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowDown, ArrowRight, CalendarDays, Check, ChevronRight, Copy, Crown, Flame, Image as ImageIcon, LogOut, Plus, Search, Settings2, Timer, Trophy, Users, Zap } from 'lucide-react'
 import { authClient } from '@/lib/auth-client'
-import { parseRecordInput } from '@/lib/record-input'
-import { Activity, CalendarDays, Copy, Flame, KeyRound, Plus, Ruler, Timer, Trophy, Upload, Users, X, Trash2 } from 'lucide-react'
+import { localDate, message } from '@/lib/client'
+import type { Challenge, FeedItem, Member } from '@/lib/hub-types'
+import { Avatar, Brand, Dialog } from '@/components/ui'
+import { AuthScreen } from '@/components/auth-screen'
+import { RecordModal } from '@/components/record-modal'
+import { ChallengeEditor, JoinDialog } from '@/components/challenge-editor'
 
-type Challenge = { id: string; name: string; goalType: string; goalValue: string | null; startDate: string; endDate: string; joinCode: string; ownerId: string }
-type FeedItem = { id: string; name: string; recordDate: string; minutes: number; kilometers: string; pace: string | null; activityType: string; proofPathname: string; description: string | null }
-type Leader = { id: string; name: string; minutes: number; kilometers: number; pace: number }
-const today = new Date().toISOString().slice(0, 10)
+type Tab = 'feed' | 'ranking' | 'members'
+const number = (value: number, digits = 1) => value.toLocaleString('pt-BR', { maximumFractionDigits: digits })
+const date = (value: string, full = false) => new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: full ? 'long' : 'short' })
+const pace = (value: number | null) => { if (!value) return '—'; const seconds = Math.round(value * 60); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` }
+const metricLabel = (goal: string) => goal === 'time' ? 'min' : goal === 'pace' ? 'min/km' : 'km'
+const score = (person: Member, goal: string) => goal === 'time' ? number(person.minutes, 0) : goal === 'pace' ? pace(person.pace) : number(person.kilometers, 2)
+function status(challenge: Challenge) { const today = localDate(); return today < challenge.startDate ? 'Em breve' : today > challenge.endDate ? 'Encerrado' : 'Em andamento' }
+function ChallengePicture({ challenge, small = false }: { challenge: Challenge; small?: boolean }) { return <span className={`challenge-picture ${small ? 'challenge-picture-small' : ''}`}>{challenge.profilePathname ? <img src={challenge.profilePathname} alt={`Foto de ${challenge.name}`} /> : <Flame size={small ? 23 : 34} strokeWidth={1.8} />}</span> }
 
 export default function Page() {
-  const [session, setSession] = useState<any>(null)
-  const [challenges, setChallenges] = useState<Challenge[]>([])
-  const [selected, setSelected] = useState<Challenge | null>(null)
-  const [leaderboard, setLeaderboard] = useState<Leader[]>([])
-  const [feed, setFeed] = useState<FeedItem[]>([])
+  const [session, setSession] = useState<{ id: string; name: string; image?: string | null } | null>(null)
+  const [challenges, setChallenges] = useState<Challenge[]>([]), [selected, setSelected] = useState<Challenge | null>(null)
+  const [members, setMembers] = useState<Member[]>([]), [feed, setFeed] = useState<FeedItem[]>([])
+  const [tab, setTab] = useState<Tab>('feed'), [modal, setModal] = useState<'create' | 'edit' | 'join' | 'record' | null>(null)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
-  const [modal, setModal] = useState<'create' | 'join' | 'record' | null>(null)
-  const [notice, setNotice] = useState('')
-
-  const refresh = async (challengeId?: string) => {
-    const response = await fetch(`/api/challenges${challengeId ? `?challengeId=${challengeId}` : ''}`)
-    if (!response.ok) return
-    const data = await response.json()
-    setSession(data.user)
-    setChallenges(data.challenges)
-    const active = data.challenges.find((item: Challenge) => item.id === data.selectedChallengeId) ?? data.challenges[0] ?? null
-    setSelected(active)
-    setLeaderboard(data.leaderboard ?? [])
-    setFeed(data.feed ?? [])
-  }
-
-  useEffect(() => { refresh() }, [])
-  if (!session) return <AuthScreen mode={authMode} setMode={setAuthMode} onDone={() => refresh()} />
-
-  const challenge = selected
-  const afterAction = (message: string) => {
-    setModal(null)
-    setNotice(message)
-    refresh(challenge?.id)
-    window.setTimeout(() => setNotice(''), 3500)
-  }
+  const [loading, setLoading] = useState(true), [refreshing, setRefreshing] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
+  const [photo, setPhoto] = useState<FeedItem | null>(null)
+  const selectedId = useRef<string | undefined>(undefined), requestNumber = useRef(0)
+  const refresh = useCallback(async (challengeId?: string) => {
+    const current = ++requestNumber.current
+    const target = challengeId ?? selectedId.current
+    setRefreshing(true)
+    try {
+      const response = await fetch(`/api/challenges${target ? `?challengeId=${encodeURIComponent(target)}` : ''}`, { cache: 'no-store', signal: AbortSignal.timeout(20000) })
+      if (current !== requestNumber.current) return
+      if (response.status === 401) { setSession(null); return }
+      if (!response.ok) throw new Error('Não foi possível atualizar o desafio. Tente novamente.')
+      const data = await response.json()
+      if (current !== requestNumber.current) return
+      const active = data.challenges.find((item: Challenge) => item.id === data.selectedChallengeId) ?? null
+      setSession(data.user); setChallenges(data.challenges); setSelected(active); selectedId.current = active?.id
+      setMembers(data.members ?? data.leaderboard ?? []); setFeed(data.feed); setError('')
+    } catch (error) { if (current === requestNumber.current) setError(message(error)) }
+    finally { if (current === requestNumber.current) { setLoading(false); setRefreshing(false) } }
+  }, [])
+  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => { if (!notice) return; const timeout = window.setTimeout(() => setNotice(''), 5000); return () => window.clearTimeout(timeout) }, [notice])
+  const afterAction = (text: string, id?: string) => { setModal(null); setNotice(text); void refresh(id) }
   const deleteChallenge = async () => {
-    if (!challenge || !window.confirm(`Excluir “${challenge.name}”? Essa ação não pode ser desfeita.`)) return
-    const response = await fetch(`/api/challenges?challengeId=${challenge.id}`, { method: 'DELETE' })
-    if (response.ok) { setSelected(null); setNotice('Desafio excluído.'); refresh(); window.setTimeout(() => setNotice(''), 3500) }
+    if (!selected || !window.confirm(`Excluir o desafio “${selected.name}”? Os treinos pessoais serão preservados.`)) return
+    try { const response = await fetch(`/api/challenges?challengeId=${selected.id}`, { method: 'DELETE', signal: AbortSignal.timeout(20000) }); if (!response.ok) throw new Error('Não foi possível excluir o desafio.'); selectedId.current = undefined; afterAction('Desafio excluído.') } catch (error) { setError(message(error)) }
   }
-
-  return <main className="min-h-screen bg-[#f7f8f6] text-[#18231e]">
-    <header className="border-b border-[#e3e8e3] bg-white"><div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5"><div className="flex items-center gap-2 font-bold tracking-tight"><span className="flex size-9 items-center justify-center rounded-xl bg-[#d9f96d]"><Flame className="size-5" /></span>pulso<span className="text-[#7ea615]">.</span></div><div className="flex items-center gap-3"><span className="hidden text-sm text-[#718077] sm:block">Olá, {session.name}</span><button className="rounded-lg border border-[#dfe6dc] px-3 py-2 text-xs font-bold" onClick={async () => { await authClient.signOut(); setSession(null) }}>Sair</button></div></div></header>
-    <section className="mx-auto max-w-6xl px-5 py-10">
-      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#91a097]">SEU ESPAÇO DE CARDIO</p><h1 className="mt-2 text-4xl font-bold tracking-[-.06em]">Desafie sua turma<span className="text-[#86a91a]">.</span></h1><p className="mt-2 text-sm text-[#7b877e]">Um registro diário. Todos os seus desafios atualizados.</p></div><div className="flex flex-wrap gap-2"><button onClick={() => setModal('join')} className="flex items-center gap-2 rounded-lg border border-[#dfe6dc] bg-white px-4 py-3 text-xs font-bold"><KeyRound className="size-4" />Entrar com chave</button><button onClick={() => setModal('create')} className="flex items-center gap-2 rounded-lg bg-[#24311e] px-4 py-3 text-xs font-bold text-white"><Plus className="size-4" />Criar desafio</button></div></div>
-      {notice && <div className="mt-5 rounded-xl bg-[#e8f5c9] px-4 py-3 text-sm font-semibold text-[#526a17]">{notice}</div>}
-      {challenges.length === 0 ? <EmptyState onCreate={() => setModal('create')} /> : <>
-        <div className="mt-8 flex gap-2 overflow-x-auto pb-1">{challenges.map(item => <button key={item.id} onClick={() => refresh(item.id)} className={`shrink-0 rounded-xl border px-4 py-3 text-left ${challenge?.id === item.id ? 'border-[#b9d65d] bg-[#eff8d8]' : 'border-[#e3e8e3] bg-white'}`}><p className="text-sm font-bold">{item.name}</p><p className="mt-1 text-[11px] text-[#829087]">{goalLabel(item.goalType)} · {item.startDate} — {item.endDate}</p></button>)}</div>
-        {challenge && <ChallengeView challenge={challenge} leaderboard={leaderboard} feed={feed} session={session} onRecord={() => setModal('record')} onDelete={deleteChallenge} />}
-      </>}
-    </section>
-    {modal === 'create' && <ChallengeModal onClose={() => setModal(null)} onCreated={() => afterAction('Desafio criado. Compartilhe a chave com sua turma.')} />}
-    {modal === 'join' && <JoinModal onClose={() => setModal(null)} onJoined={() => afterAction('Você entrou no desafio.')} />}
-    {modal === 'record' && <RecordModal onClose={() => setModal(null)} onSaved={() => afterAction('Cardio registrado e contabilizado nos seus desafios.')} />}
-  </main>
-}
-
-function ChallengeView({ challenge, leaderboard, feed, session, onRecord, onDelete }: { challenge: Challenge; leaderboard: Leader[]; feed: FeedItem[]; session: any; onRecord: () => void; onDelete: () => void }) {
-  return <div className="mt-6 grid gap-5 lg:grid-cols-[1.2fr_.8fr]">
-    <section className="overflow-hidden rounded-2xl border border-[#dfe7dc] bg-white shadow-sm"><div className="flex items-start justify-between bg-[#24311e] p-6 text-white"><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#d9f96d]">DESAFIO ATIVO</p><h2 className="mt-2 text-2xl font-bold">{challenge.name}</h2><p className="mt-2 text-xs text-[#c4d0bd]">{challenge.startDate} até {challenge.endDate} · objetivo por {goalLabel(challenge.goalType)}</p></div><div className="flex gap-2"><button onClick={() => navigator.clipboard?.writeText(challenge.joinCode)} aria-label="Copiar chave" className="rounded-lg bg-white/10 p-2"><Copy className="size-4" /></button>{challenge.ownerId === session.id && <button onClick={onDelete} aria-label="Excluir desafio" className="rounded-lg bg-white/10 p-2 text-[#ffb4a9]"><Trash2 className="size-4" /></button>}</div></div><div className="border-b border-[#edf0ec] p-5"><div className="flex items-center justify-between"><div><p className="text-xs text-[#91a097]">CHAVE PARA CONVIDAR</p><p className="mt-1 text-xl font-black tracking-[.2em]">{challenge.joinCode}</p></div><button onClick={onRecord} className="flex items-center gap-2 rounded-lg bg-[#d9f96d] px-4 py-3 text-xs font-bold text-[#24311e]"><Plus className="size-4" />Registrar cardio</button></div></div><div className="p-5"><div className="mb-4 flex items-center gap-2"><Trophy className="size-5 text-[#90b326]" /><h3 className="font-bold">Placar</h3></div><div className="flex flex-col gap-2">{leaderboard.map((person, index) => <div key={person.id} className={`flex items-center gap-3 rounded-xl px-3 py-3 ${index === 0 ? 'bg-[#f1f8df]' : 'bg-[#f8faf7]'}`}><span className="flex size-8 items-center justify-center rounded-full bg-[#dfe9d8] text-xs font-black">{index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{person.name}</p><p className="text-[11px] text-[#829087]">{person.minutes} min · {person.kilometers.toFixed(2)} km</p></div><strong className="text-sm">{challenge.goalType === 'time' ? `${person.minutes} min` : challenge.goalType === 'pace' ? (person.pace ? `${person.pace.toFixed(2)} pace` : '—') : `${person.kilometers.toFixed(2)} km`}</strong></div>)}{leaderboard.length === 0 && <p className="py-6 text-center text-sm text-[#91a097]">O placar aparece assim que a turma registrar um cardio.</p>}</div></div></section>
-    <section className="rounded-2xl border border-[#dfe7dc] bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><div className="flex items-center gap-2"><Activity className="size-5 text-[#90b326]" /><h3 className="font-bold">Feed da turma</h3></div><p className="mt-1 text-xs text-[#829087]">As últimas publicações do desafio</p></div><Users className="size-5 text-[#b1beb3]" /></div><div className="mt-5 flex flex-col gap-3">{feed.map(item => <FeedCard key={item.id} item={item} />)}{feed.length === 0 && <div className="rounded-xl bg-[#f8faf7] p-8 text-center"><p className="text-sm font-bold">Seu feed está esperando o primeiro cardio.</p><p className="mt-1 text-xs text-[#829087]">Registre sua atividade e inspire a turma.</p></div>}</div></section>
+  if (loading) return <main className="loading-screen"><Brand /><span className="loading-dot" /><p>Preparando seu espaço…</p></main>
+  if (!session) return <>{error && <div className="connection-banner" role="alert">{error} <button onClick={() => void refresh()}>Tentar novamente</button></div>}<AuthScreen mode={authMode} setMode={setAuthMode} onDone={() => refresh()} /></>
+  return <div className="hub">
+    <aside className="sidebar">
+      <Brand />
+      <div className="sidebar-heading"><span>SEUS DESAFIOS</span><button className="icon-button" aria-label="Criar desafio" onClick={() => setModal('create')}><Plus size={18} /></button></div>
+      <nav className="challenge-nav" aria-label="Seus desafios">{challenges.map(item => <button key={item.id} aria-current={selected?.id === item.id ? 'page' : undefined} className={`challenge-nav-item ${selected?.id === item.id ? 'selected' : ''}`} onClick={() => { setTab('feed'); void refresh(item.id) }}><ChallengePicture challenge={item} small /><span><strong>{item.name}</strong><small>{item.memberCount} {item.memberCount === 1 ? 'membro' : 'membros'}</small></span><ChevronRight size={15} /></button>)}{challenges.length === 0 && <p className="sidebar-empty">Sua próxima turma começa aqui.</p>}</nav>
+      <div className="sidebar-actions"><button className="button primary full" onClick={() => setModal('create')}><Plus size={17} />Criar desafio</button><button className="button secondary full" onClick={() => setModal('join')}><Users size={17} />Entrar com chave</button></div>
+      <div className="sidebar-note"><Zap size={20} /><strong>Um treino de cada vez.</strong><p>Vários cardios no mesmo dia? Cada um conta.</p></div>
+      <div className="sidebar-user"><Avatar name={session.name} image={session.image} /><span><strong>{session.name}</strong><small>Seu ritmo. Sua turma.</small></span><button className="icon-button" aria-label="Sair" onClick={async () => { await authClient.signOut(); setSession(null) }}><LogOut size={17} /></button></div>
+    </aside>
+    <main className="hub-main">
+      <header className="hub-topbar"><div><span className="desktop-breadcrumb">Seu espaço <ChevronRight size={13} /> <strong>Desafios</strong></span><span className="mobile-brand"><Brand /></span></div><div className="topbar-actions"><span className="today-label">{new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}</span><button className="button secondary compact" onClick={() => setModal('join')}><Plus size={15} />Entrar na turma</button><span className="mobile-user"><Avatar name={session.name} image={session.image} size="small" /><button className="icon-button" aria-label="Sair" onClick={async () => { await authClient.signOut(); setSession(null) }}><LogOut size={16} /></button></span></div></header>
+      <div className="mobile-challenges"><div className="mobile-challenge-scroll">{challenges.map(item => <button key={item.id} aria-pressed={selected?.id === item.id} className={selected?.id === item.id ? 'selected' : ''} onClick={() => { setTab('feed'); void refresh(item.id) }}><ChallengePicture challenge={item} small />{item.name}</button>)}<button onClick={() => setModal('create')}><Plus size={17} />Novo desafio</button></div></div>
+      <div className="hub-content">
+        {notice && <div className="notice" role="status"><Check size={18} />{notice}</div>}
+        {error && <div className="error-banner" role="alert">{error}<button onClick={() => void refresh()}>Tentar novamente</button></div>}
+        {selected ? <>
+          <ChallengeHero challenge={selected} members={members} sessionId={session.id} onEdit={() => setModal('edit')} onRecord={() => setModal('record')} onMembers={() => setTab('members')} onCopy={() => setNotice('Chave copiada. Compartilhe com sua turma!')} onError={setError} />
+          <div className="challenge-tabs" role="tablist" aria-label="Conteúdo do desafio">{([['feed', 'Feed', Flame], ['ranking', 'Ranking', Trophy], ['members', 'Membros', Users]] as const).map(([key, label, Icon]) => <button key={key} id={`tab-${key}`} role="tab" aria-controls={`panel-${key}`} aria-selected={tab === key} onClick={() => setTab(key)}><Icon size={17} />{label}{key === 'members' && <span className="tab-count">{members.length}</span>}</button>)}<span className="tab-status" aria-live="polite">{refreshing ? 'Atualizando…' : `${feed.length} ${feed.length === 1 ? 'treino registrado' : 'treinos registrados'}`}</span></div>
+          <section id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`}>
+            {tab === 'feed' && <Feed challenge={selected} members={members} feed={feed} session={session} onRecord={() => setModal('record')} onPhoto={setPhoto} onRanking={() => setTab('ranking')} />}
+            {tab === 'ranking' && <Ranking challenge={selected} members={members} sessionId={session.id} />}
+            {tab === 'members' && <Members members={members} sessionId={session.id} />}
+          </section>
+          {selected.ownerId === session.id && <footer className="challenge-footer"><span>Você é o administrador deste desafio.</span><button onClick={deleteChallenge}>Excluir desafio</button></footer>}
+        </> : <div className="welcome"><span className="welcome-icon"><Flame size={42} /></span><p className="eyebrow">COMECE UM MOVIMENTO</p><h1>Seu próximo desafio<br />é melhor em turma.</h1><p>Crie um objetivo, convide seus amigos e transforme cada treino em uma conquista compartilhada.</p><div><button className="button primary" onClick={() => setModal('create')}><Plus size={18} />Criar meu desafio</button><button className="button secondary" onClick={() => setModal('join')}>Tenho uma chave<ArrowRight size={17} /></button></div></div>}
+      </div>
+    </main>
+    {(modal === 'create' || (modal === 'edit' && selected)) && <ChallengeEditor challenge={modal === 'edit' ? selected! : undefined} onClose={() => setModal(null)} onSaved={id => afterAction(modal === 'edit' ? 'Desafio atualizado. A cara da turma ficou ainda melhor.' : 'Desafio criado. Agora é só convidar a turma!', id)} />}
+    {modal === 'join' && <JoinDialog onClose={() => setModal(null)} onJoined={id => afterAction('Você está na turma. Vamos nessa!', id)} />}
+    {modal === 'record' && <RecordModal onClose={() => setModal(null)} onSaved={() => afterAction('Mais um cardio na conta! O ranking foi atualizado.')} />}
+    {photo && <Dialog title={`Treino de ${photo.name}`} onClose={() => setPhoto(null)} wide><img className="full-proof" src={photo.proofPathname} alt={`Comprovante do treino de ${photo.name}`} /><p className="photo-caption">{date(photo.recordDate, true)} · {photo.minutes} min · {number(Number(photo.kilometers), 2)} km</p></Dialog>}
   </div>
 }
 
-function goalLabel(type?: string) { return type === 'time' ? 'Tempo' : type === 'pace' ? 'Pace' : 'KM' }
-function EmptyState({ onCreate }: any) { return <div className="mt-10 rounded-2xl border border-dashed border-[#cbd7c5] bg-white p-12 text-center"><Trophy className="mx-auto size-10 text-[#a8c85d]" /><h2 className="mt-4 text-lg font-bold">Nenhum desafio ainda</h2><p className="mt-2 text-sm text-[#7b877e]">Crie um desafio ou entre usando a chave de um amigo.</p><button onClick={onCreate} className="mt-5 rounded-lg bg-[#24311e] px-4 py-3 text-xs font-bold text-white">Criar meu desafio</button></div> }
-function FeedCard({ item }: { item: FeedItem }) { return <article className="overflow-hidden rounded-xl border border-[#edf0ec] bg-[#fbfcfa]"><img src={item.proofPathname} alt={`Comprovante do cardio de ${item.name}`} className="aspect-[4/3] w-full object-cover" /><div className="p-3"><div className="flex items-center justify-between gap-2"><p className="text-sm font-bold">{item.name}</p><time className="text-[11px] text-[#91a097]">{item.recordDate}</time></div><p className="mt-2 text-xs font-semibold text-[#526158]">{item.minutes} min · {Number(item.kilometers).toFixed(2)} km{item.pace ? ` · pace ${item.pace}` : ''}</p>{item.description && <p className="mt-2 text-sm text-[#718077]">{item.description}</p>}</div></article> }
-function AuthScreen({ mode, setMode, onDone }: any) { const [name, setName] = useState(''), [email, setEmail] = useState(''), [password, setPassword] = useState(''), [error, setError] = useState(''), [submitting, setSubmitting] = useState(false); const submit = async () => { if (submitting) return; setSubmitting(true); setError(''); try { const result = mode === 'login' ? await authClient.signIn.email({ email, password }) : await authClient.signUp.email({ email, password, name }); if (result.error) { const code = result.error.code; const message = result.error.status >= 500 ? 'O serviço está temporariamente indisponível. Tente novamente em instantes.' : code === 'USER_ALREADY_EXISTS' || code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL' ? 'Este email já está cadastrado. Entre na sua conta.' : code === 'PASSWORD_TOO_SHORT' ? 'A senha deve ter pelo menos 8 caracteres.' : code === 'INVALID_EMAIL' ? 'Informe um email válido.' : mode === 'signup' ? 'Não foi possível criar a conta. Confira o nome, o email e a senha.' : 'Email ou senha incorretos.'; setError(message); } else onDone() } catch { setError('Não foi possível conectar. Tente novamente em instantes.') } finally { setSubmitting(false) } }; return <main className="flex min-h-screen items-center justify-center bg-[#f7f8f6] px-5"><div className="w-full max-w-md rounded-2xl border border-[#e3e8e3] bg-white p-8 shadow-sm"><div className="flex items-center gap-2 font-bold"><span className="flex size-9 items-center justify-center rounded-xl bg-[#d9f96d]"><Flame className="size-5" /></span>pulso.</div><h1 className="mt-10 text-3xl font-bold tracking-[-.05em]">{mode === 'login' ? 'Entre no seu ritmo.' : 'Crie sua conta.'}</h1><p className="mt-2 text-sm text-[#7b877e]">Seu espaço para desafios de cardio com amigos.</p><div className="mt-7 flex flex-col gap-3">{mode === 'signup' && <input className="h-12 rounded-lg border border-[#dfe6dc] px-3 text-sm" placeholder="Seu nome" value={name} onChange={e => setName(e.target.value)} />}<input className="h-12 rounded-lg border border-[#dfe6dc] px-3 text-sm" placeholder="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} /><input className="h-12 rounded-lg border border-[#dfe6dc] px-3 text-sm" placeholder="Senha" type="password" value={password} onChange={e => setPassword(e.target.value)} /><button disabled={submitting} onClick={submit} className="mt-2 h-12 rounded-lg bg-[#24311e] text-sm font-bold text-white">{submitting ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}</button>{error && <p className="text-sm text-red-600">{error}</p>}</div><button onClick={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login') }} className="mt-6 text-sm font-semibold text-[#6f8d19]">{mode === 'login' ? 'Ainda não tenho conta' : 'Já tenho uma conta'}</button></div></main> }
-function Shell({ title, children, onClose }: any) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#152016]/30 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-bold">{title}</h2><button onClick={onClose} className="text-xl text-[#89938c]" aria-label="Fechar"><X className="size-5" /></button></div>{children}</div></div> }
-function ChallengeModal({ onClose, onCreated }: any) { const [form, setForm] = useState({ name: '', goalType: 'km', goalValue: '', startDate: today, endDate: today }); const submit = async () => { const r = await fetch('/api/challenges', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create', ...form }) }); if (r.ok) onCreated() }; return <Shell title="Criar desafio" onClose={onClose}><div className="flex flex-col gap-3"><input className="h-11 rounded-lg border px-3 text-sm" placeholder="Nome do desafio" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /><div className="grid grid-cols-2 gap-3"><select className="h-11 rounded-lg border px-3 text-sm" value={form.goalType} onChange={e => setForm({ ...form, goalType: e.target.value })}><option value="km">Por KM</option><option value="time">Por tempo</option><option value="pace">Por pace</option></select><input className="h-11 rounded-lg border px-3 text-sm" placeholder="Meta (opcional)" value={form.goalValue} onChange={e => setForm({ ...form, goalValue: e.target.value })} /></div><div className="grid grid-cols-2 gap-3"><input type="date" className="h-11 rounded-lg border px-3 text-sm" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} /><input type="date" className="h-11 rounded-lg border px-3 text-sm" value={form.endDate} onChange={e => setForm({ ...form, endDate: e.target.value })} /></div><button onClick={submit} className="mt-2 h-11 rounded-lg bg-[#24311e] text-sm font-bold text-white">Criar e gerar chave</button></div></Shell> }
-function JoinModal({ onClose, onJoined }: any) { const [code, setCode] = useState(''); const submit = async () => { const r = await fetch('/api/challenges', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'join', joinCode: code }) }); if (r.ok) onJoined() }; return <Shell title="Entrar com chave" onClose={onClose}><p className="mb-4 text-sm text-[#7b877e]">Cole a chave compartilhada pelo criador do desafio.</p><input autoFocus className="h-12 w-full rounded-lg border px-3 text-center text-lg font-bold uppercase tracking-[.2em]" placeholder="ABC123" value={code} onChange={e => setCode(e.target.value)} /><button onClick={submit} className="mt-4 h-11 w-full rounded-lg bg-[#24311e] text-sm font-bold text-white">Entrar no desafio</button></Shell> }
-function RecordModal({ onClose, onSaved }: any) {
-  const [file, setFile] = useState<File | null>(null)
-  const [minutes, setMinutes] = useState(''), [km, setKm] = useState('')
-  const [pace, setPace] = useState(''), [description, setDescription] = useState('')
-  const [preview, setPreview] = useState(''), [stage, setStage] = useState(''), [error, setError] = useState('')
-  const [proof, setProof] = useState<{ file: File; pathname: string } | null>(null)
-  const submitting = stage !== ''
-  useEffect(() => {
-    if (!file) { setPreview(''); return }
-    const url = URL.createObjectURL(file)
-    setPreview(url)
-    return () => URL.revokeObjectURL(url)
-  }, [file])
-  const submit = async () => {
-    if (submitting) return
-    setError('')
-    let values
-    try {
-      if (!file) throw new Error('Tire uma foto do seu cardio para continuar.')
-      if (file.size > 8 * 1024 * 1024) throw new Error('A foto deve ter até 8 MB. Escolha uma imagem menor.')
-      values = parseRecordInput({ minutes, kilometers: km, pace })
-    } catch (validationError) { setError((validationError as Error).message); return }
-    const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 60000)
-    const responseError = (status: number, fallback: string) => status === 401
-      ? 'Sua sessão expirou. Entre novamente para publicar.' : fallback
-    try {
-      let pathname = proof?.file === file ? proof.pathname : undefined
-      if (!pathname) {
-        setStage('Enviando foto...')
-        const form = new FormData(); form.append('file', file!)
-        const upload = await fetch('/api/upload', { method: 'POST', body: form, signal: controller.signal })
-        const uploaded = await upload.json().catch(() => null)
-        if (!upload.ok || typeof uploaded?.pathname !== 'string') {
-          throw new Error(responseError(upload.status, uploaded?.error || 'Não foi possível enviar a foto. Tente novamente.'))
-        }
-        pathname = uploaded.pathname
-        setProof({ file: file!, pathname: pathname! })
-      }
-      setStage('Publicando treino...')
-      const response = await fetch('/api/challenges', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-        body: JSON.stringify({ action: 'record', recordDate: today, ...values, description, proofPathname: pathname }),
-      })
-      if (!response.ok) {
-        const result = await response.json().catch(() => null)
-        throw new Error(responseError(response.status, result?.error || 'Não foi possível publicar o treino. Tente novamente.'))
-      }
-      onSaved()
-    } catch (submissionError) {
-      setError(controller.signal.aborted ? 'O envio demorou demais. Confira sua conexão e tente novamente.'
-        : submissionError instanceof TypeError ? 'Não foi possível conectar. Confira sua conexão e tente novamente.'
-        : submissionError instanceof Error ? submissionError.message : 'Não foi possível publicar o treino.')
-    } finally { window.clearTimeout(timeout); setStage('') }
-  }
-  return <Shell title="Registrar cardio de hoje" onClose={onClose}>
-    <p className="mb-4 text-sm text-[#7b877e]">Este registro será contabilizado automaticamente em todos os seus desafios ativos.</p>
-    <form onSubmit={event => { event.preventDefault(); void submit() }} className="flex flex-col gap-3" aria-busy={submitting}>
-      <label className="block cursor-pointer overflow-hidden rounded-xl border border-dashed border-[#b9d65d] bg-[#f8fbeF] text-center text-sm font-bold text-[#6f8d19]">
-        {preview ? <img src={preview} alt="Prévia do comprovante" className="aspect-[4/3] w-full object-cover" /> : <div className="p-6"><Upload className="mx-auto mb-2 size-6" /><span>Tirar foto do comprovante</span><span className="mt-1 block text-[11px] font-normal text-[#829087]">A câmera do celular será aberta</span></div>}
-        <div className="border-t border-[#dfe8d6] px-3 py-2 text-xs">{file ? 'Toque para tirar outra foto' : 'Abrir câmera'}</div>
-        <input aria-label="Foto do comprovante" disabled={submitting} type="file" accept="image/png,image/jpeg,image/gif,image/webp" capture="environment" className="hidden" onChange={event => { setFile(event.target.files?.[0] ?? null); setProof(null); setError('') }} />
-      </label>
-      <p className="text-xs text-[#7b877e]">Foto em PNG, JPEG, GIF ou WebP, até 8 MB.</p>
-      <div className="grid grid-cols-2 gap-3">
-        <input aria-label="Minutos" disabled={submitting} className="h-11 rounded-lg border px-3 text-sm" inputMode="numeric" placeholder="Minutos" value={minutes} onChange={event => setMinutes(event.target.value)} />
-        <input aria-label="Quilômetros" disabled={submitting} className="h-11 rounded-lg border px-3 text-sm" inputMode="decimal" placeholder="KM" value={km} onChange={event => setKm(event.target.value)} />
-      </div>
-      <input aria-label="Pace" disabled={submitting} className="h-11 rounded-lg border px-3 text-sm" placeholder="Pace (opcional): 6:30 ou 6,5" value={pace} onChange={event => setPace(event.target.value)} />
-      <textarea aria-label="Descrição" disabled={submitting} className="min-h-20 rounded-lg border px-3 py-2 text-sm" placeholder="Descrição (opcional)" value={description} onChange={event => setDescription(event.target.value)} />
-      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-      <button disabled={submitting} type="submit" className="h-11 rounded-lg bg-[#24311e] text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60">{stage || 'Publicar no feed'}</button>
-    </form>
-  </Shell>
+function ChallengeHero({ challenge, members, sessionId, onEdit, onRecord, onMembers, onCopy, onError }: { challenge: Challenge; members: Member[]; sessionId: string; onEdit: () => void; onRecord: () => void; onMembers: () => void; onCopy: () => void; onError: (text: string) => void }) {
+  const workouts = members.reduce((sum, member) => sum + member.workouts, 0)
+  const active = members.filter(member => member.workouts > 0).length
+  return <section className="challenge-hero"><div className={`challenge-cover ${challenge.coverPathname ? 'has-image' : ''}`}>{challenge.coverPathname && <img src={challenge.coverPathname} alt={`Capa de ${challenge.name}`} />}<div className="cover-shade" /><span className="challenge-status"><span />{status(challenge)}</span>{challenge.ownerId === sessionId && <button className="cover-edit" onClick={onEdit}><Settings2 size={16} />Personalizar</button>}<div className="cover-wordmark" aria-hidden="true">MOVE<br />TOGETHER.</div></div>
+    <div className="hero-details"><div className="hero-title-row"><ChallengePicture challenge={challenge} /><div className="hero-title"><p className="eyebrow">UM OBJETIVO. UMA TURMA.</p><h1>{challenge.name}</h1></div><button className="button primary hero-record" onClick={onRecord}><Plus size={18} />Registrar cardio</button></div><p className="hero-description">{challenge.description || 'Cada treino conta. Junte-se à turma e encontre seu próximo ritmo.'}</p><div className="hero-meta"><span><CalendarDays size={15} />{date(challenge.startDate)} — {date(challenge.endDate)}</span><span><Trophy size={15} />{challenge.goalType === 'time' ? 'Mais minutos' : challenge.goalType === 'pace' ? 'Menor pace médio' : 'Mais quilômetros'}</span><button className="hero-members" onClick={onMembers}><span className="avatar-stack">{members.slice(0, 3).map(member => <Avatar key={member.id} name={member.name} image={member.image} size="small" />)}</span>{members.length} {members.length === 1 ? 'membro' : 'membros'}</button><button className="invite-copy" onClick={async () => { try { await navigator.clipboard.writeText(challenge.joinCode); onCopy() } catch { onError(`Não foi possível copiar. Sua chave é ${challenge.joinCode}.`) } }}><Copy size={14} /><span>{challenge.joinCode}</span></button></div></div>
+    <div className="hero-stats"><div><strong>{number(workouts, 0)}</strong><span>treinos da turma</span></div><div><strong>{number(members.reduce((sum, member) => sum + member.kilometers, 0), 2)}<small> km</small></strong><span>percorridos juntos</span></div><div><strong>{active}<small> / {members.length}</small></strong><span>membros em movimento</span></div></div>
+  </section>
 }
 
-void CalendarDays; void Ruler; void Timer
+function Feed({ challenge, members, feed, session, onRecord, onPhoto, onRanking }: { challenge: Challenge; members: Member[]; feed: FeedItem[]; session: { id: string; name: string; image?: string | null }; onRecord: () => void; onPhoto: (item: FeedItem) => void; onRanking: () => void }) {
+  const [filter, setFilter] = useState<'all' | 'mine'>('all')
+  const visible = filter === 'mine' ? feed.filter(item => item.userId === session.id) : feed
+  const me = members.find(member => member.id === session.id)
+  const goal = Number(challenge.goalValue)
+  const myValue = me ? challenge.goalType === 'time' ? me.minutes : challenge.goalType === 'pace' ? me.pace ?? 0 : me.kilometers : 0
+  const progress = goal > 0 ? Math.min(100, Math.max(0, challenge.goalType === 'pace' ? myValue > 0 ? goal / myValue * 100 : 0 : myValue / goal * 100)) : 0
+  return <div className="feed-layout"><div className="feed-main"><button className="feed-composer" onClick={onRecord}><Avatar name={session.name} image={session.image} /><span><strong>Como foi seu cardio?</strong><small>Compartilhe seu treino com a turma.</small></span><span className="composer-plus"><Plus size={22} /></span></button><div className="feed-heading"><h2>O movimento da turma</h2><div className="feed-filters"><button aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>Todos</button><button aria-pressed={filter === 'mine'} onClick={() => setFilter('mine')}>Meus treinos</button></div></div>
+    {visible.map(item => <article className="feed-card" key={item.id}><header><Avatar name={item.name} image={item.image} /><div><strong>{item.name}{item.userId === session.id && <small className="you-label">você</small>}</strong><span>{date(item.recordDate, true)} · {item.activityType}</span></div><span className="workout-tag"><Flame size={12} />Cardio feito</span></header>{item.description && <p className="feed-description">{item.description}</p>}<button className="feed-photo" onClick={() => onPhoto(item)} aria-label={`Ver foto do treino de ${item.name}`}><img src={item.proofPathname} alt={`Comprovante do cardio de ${item.name}`} loading="lazy" /><span><ImageIcon size={15} />Ver foto</span></button><div className="feed-metrics"><div><span>DISTÂNCIA</span><strong>{number(Number(item.kilometers), 2)}<small> km</small></strong></div><div><span>TEMPO</span><strong>{item.minutes}<small> min</small></strong></div><div><span>PACE</span><strong>{pace(item.pace ? Number(item.pace) : Number(item.kilometers) > 0 ? item.minutes / Number(item.kilometers) : null)}<small> min/km</small></strong></div></div></article>)}
+    {visible.length === 0 && <div className="panel-empty"><Flame size={32} /><h3>{filter === 'mine' ? 'Seu próximo treino vai aparecer aqui.' : 'O primeiro passo é seu.'}</h3><p>Registre um cardio e dê o primeiro incentivo à turma.</p><button className="button primary" onClick={onRecord}><Plus size={16} />Registrar cardio</button></div>}
+  </div><aside className="feed-aside"><section className="summary-card"><p className="eyebrow">SEU RITMO NO DESAFIO</p><div className="your-workouts"><strong>{me?.workouts ?? 0}</strong><span>{me?.workouts === 1 ? 'treino registrado' : 'treinos registrados'}</span><Flame size={27} /></div><div className="personal-stats"><div><strong>{number(me?.kilometers ?? 0, 2)} km</strong><span>distância total</span></div><div><strong>{me?.minutes ?? 0} min</strong><span>tempo total</span></div></div>{goal > 0 && <div className="goal-progress"><div><span>Meta: {number(goal)} {metricLabel(challenge.goalType)}</span><strong>{Math.round(progress)}%</strong></div><progress max="100" value={progress} aria-label="Progresso na meta" /></div>}<p className="summary-footnote">Todos os seus treinos no período contam. Inclusive mais de um no mesmo dia.</p></section><section className="summary-card"><div className="section-heading"><h3>Quem está no ritmo</h3><Trophy size={19} /></div>{members.filter(member => member.workouts > 0 && (challenge.goalType !== 'pace' || member.pace != null)).slice(0, 3).map((member, index) => <div className="mini-rank" key={member.id}><span className="rank-number">{index + 1}</span><Avatar name={member.name} image={member.image} size="small" /><strong>{member.name}</strong><span>{score(member, challenge.goalType)}<small> {metricLabel(challenge.goalType)}</small></span></div>)}{members.every(member => member.workouts === 0) && <p className="muted">A primeira conquista está logo ali.</p>}<button className="text-button" onClick={onRanking}>Ver ranking completo<ArrowRight size={15} /></button></section><section className="movement-note"><Zap size={24} /><h3>A constância<br />é contagiante.</h3><p>Seu treino pode ser o incentivo que alguém precisava hoje.</p></section></aside></div>
+}
+
+function Ranking({ challenge, members, sessionId }: { challenge: Challenge; members: Member[]; sessionId: string }) {
+  const competing = members.filter(member => member.workouts > 0 && (challenge.goalType !== 'pace' || member.pace !== null))
+  const podium = [competing[1], competing[0], competing[2]]
+  return <div className="ranking-panel"><div className="panel-title"><div><p className="eyebrow">CADA TREINO SOMA</p><h2>O ritmo de quem se move.</h2><p>Ranking por {challenge.goalType === 'time' ? 'tempo acumulado' : challenge.goalType === 'pace' ? 'pace médio ponderado pela distância' : 'distância acumulada'} no período do desafio.</p></div><span className="ranking-icon"><Trophy size={30} /></span></div>{competing.length > 0 && <div className="podium">{podium.map((member, index) => member && <div key={member.id} className={`podium-person ${index === 1 ? 'podium-first' : ''}`}>{index === 1 && <Crown className="podium-crown" size={25} />}<Avatar name={member.name} image={member.image} size="large" /><span className="podium-place">{index === 1 ? 1 : index === 0 ? 2 : 3}</span><strong>{member.name}</strong><span>{score(member, challenge.goalType)} <small>{metricLabel(challenge.goalType)}</small></span><small>{member.workouts} {member.workouts === 1 ? 'treino' : 'treinos'}</small></div>)}</div>}<div className="ranking-list"><div className="ranking-list-label"><span>MEMBRO</span><span>RESULTADO</span></div>{members.map(member => <div className={`ranking-row ${member.id === sessionId ? 'is-you' : ''}`} key={member.id}><span className="rank-number">{competing.findIndex(person => person.id === member.id) >= 0 ? competing.findIndex(person => person.id === member.id) + 1 : '—'}</span><Avatar name={member.name} image={member.image} /><div className="rank-person"><strong>{member.name}{member.id === sessionId && <small className="you-label">você</small>}</strong><span>{member.workouts ? `${member.workouts} treinos · ${member.activeDays} dias em movimento` : 'O próximo treino começa sua história'}</span></div><div className="rank-score"><strong>{score(member, challenge.goalType)}</strong><span>{metricLabel(challenge.goalType)}</span></div></div>)}</div><p className="ranking-note"><ArrowDown size={14} />No ranking de pace, menor é melhor. Quem ainda não tem distância registrada aparece sem posição.</p></div>
+}
+
+function Members({ members, sessionId }: { members: Member[]; sessionId: string }) {
+  const [search, setSearch] = useState('')
+  const normalize = (value: string) => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+  const visible = members.filter(member => normalize(member.name).includes(normalize(search)))
+  return <div className="members-panel"><div className="members-heading"><div><p className="eyebrow">MELHOR EM TURMA</p><h2>Conheça quem se move com você.</h2><p>{members.length} {members.length === 1 ? 'pessoa, um começo.' : 'pessoas compartilhando o mesmo objetivo.'}</p></div><label className="member-search"><Search size={17} /><input aria-label="Buscar membro" placeholder="Buscar na turma" value={search} onChange={event => setSearch(event.target.value)} /></label></div><div className="member-grid">{visible.map(member => <article className="member-card" key={member.id}><div className="member-card-heading"><Avatar name={member.name} image={member.image} size="large" /><span className={`member-role ${member.isOwner ? 'admin' : ''}`}>{member.isOwner ? <><Crown size={12} />Administrador</> : 'Membro'}</span></div><h3>{member.name}{member.id === sessionId && <small className="you-label">você</small>}</h3><p className="member-since">Na turma desde {new Date(member.joinedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</p><div className="member-numbers"><div><strong>{member.workouts}</strong><span>treinos</span></div><div><strong>{number(member.kilometers, 2)}</strong><span>km</span></div><div><strong>{member.minutes}</strong><span>min</span></div></div><div className={`member-activity ${member.workouts ? 'active' : ''}`}><span />{member.lastTrainingDate ? `Último treino: ${date(member.lastTrainingDate)}` : 'Esperando o primeiro cardio'}</div></article>)}</div>{visible.length === 0 && <p className="panel-empty">Nenhum membro encontrado com esse nome.</p>}</div>
+}

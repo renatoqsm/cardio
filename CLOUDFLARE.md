@@ -14,8 +14,13 @@ A conexão PostgreSQL do Worker usa Hyperdrive com cache desativado, limite de
 cinco conexões à origem e TLS `verify-full`, confiando no certificado oficial
 Supabase Root 2021 CA. Isso corrige a falha `TLS Handshake Failed` da conexão
 direta pelo cliente do Worker. O binding `HYPERDRIVE` está em `wrangler.jsonc`.
-Em 07/10/2026, 31 verificações funcionais passaram na URL pública, incluindo
-cadastro, login, saída, desafios, registros, placar e acesso privado às fotos.
+Em 07/10/2026, 50 verificações funcionais passaram na URL pública, incluindo
+cadastro, login, saída, vários cardios no mesmo dia, proteção contra reenvios
+duplicados, totais do ranking, personalização e acesso privado às fotos do
+desafio. A migração preservou os registros e associações existentes.
+Feed, pódio, busca de membros, editor de fotos e layout móvel foram verificados
+no navegador local; os assets publicados e a navegação login/cadastro também
+foram verificados no navegador.
 Os dados temporários desse teste foram removidos do banco e do Storage.
 O envio de foto JPEG de 4,3 MB e a publicação com pace vazio passaram.
 O formulário mostra erros, indica o progresso e libera nova tentativa após
@@ -30,6 +35,10 @@ OpenNext e a configuração Wrangler; o nome do Worker é `cardio`.
 
 1. Crie um projeto. Guarde a senha do banco em um gerenciador de senhas.
 2. No SQL Editor, execute `supabase/init.sql` para criar as sete tabelas.
+   Para um banco existente, execute também as migrações SQL de
+   `supabase/migrations` em ordem antes de publicar a nova versão.
+   `20261007_challenge_hub.sql` adiciona a identidade do desafio e permite
+   vários treinos no mesmo dia, preservando os registros existentes.
    O script ativa RLS sem políticas públicas, impedindo acesso anônimo via
    Data API. A conexão PostgreSQL do servidor deve ter acesso às tabelas.
 3. Em Storage, crie o bucket **privado** `cardio-proofs`. Permita imagens

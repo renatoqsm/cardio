@@ -60,6 +60,9 @@ async function main() {
       for (const constraint of config.uniqueConstraints) columns.push(`UNIQUE (${constraint.columns.map(c => quote(c.name)).join(', ')})`);
       await client.query(`CREATE TABLE IF NOT EXISTS ${quote(config.name)} (${columns.join(', ')});`);
     }
+    for (const file of fs.readdirSync(path.join(project, 'supabase/migrations')).filter(file => file.endsWith('.sql')).sort()) {
+      await client.query(fs.readFileSync(path.join(project, 'supabase/migrations', file), 'utf8'));
+    }
     await client.query('COMMIT');
     console.log('PostgreSQL ready; 7 application tables initialized. Existing tables preserved.');
   } catch (error) { await client.query('ROLLBACK'); throw error; }

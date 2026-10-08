@@ -8,6 +8,20 @@ Para publicar na Cloudflare Workers com banco e fotos no Supabase, siga
 
 URL publicada: https://cardio.renatoqsousam.workers.dev
 
+## Desafios e feed
+
+Cada desafio tem capa, foto de perfil, descrição e abas Feed, Ranking e Membros.
+O administrador personaliza a identidade e as regras em **Personalizar**.
+O feed mostra cada treino separadamente, com foto, atividade e métricas, e pode
+ser filtrado para seus próprios treinos. Os membros têm busca, indicação do
+administrador e resumo da participação; o ranking mostra pódio e totais.
+
+É possível publicar vários cardios no mesmo dia. O ranking soma todos no
+período do desafio; reenvios da mesma publicação não duplicam o treino.
+O pace médio é ponderado pela distância, usando minutos/distância quando o
+pace não foi preenchido. Registros anteriormente substituídos pela antiga
+regra de um cardio por dia não podem ser recuperados automaticamente.
+
 ## Desenvolvimento local
 
 Requisitos: Linux x64 e Node.js 22 ou superior (ambiente validado com Node 24).
@@ -22,8 +36,8 @@ A instalação utiliza pnpm 12.3.4 e o lockfile. O script prepara PostgreSQL
 17.10 em `.local/postgres`, na porta 54329, acessível apenas em 127.0.0.1.
 Cria as sete tabelas do schema e gera credenciais aleatórias em `.env.local`.
 Repetir o setup preserva configurações, tabelas e dados existentes.
-Os scripts não alteram tabelas existentes: mudanças futuras no schema precisam
-de migrações próprias.
+O setup aplica as migrações SQL de `supabase/migrations` em ordem, de forma
+repetível, preservando registros existentes.
 
 O app utiliza a porta 3000. Os processos precisam ser iniciados novamente
 quando o ambiente for restaurado; os arquivos e dados permanecem no disco.
@@ -48,6 +62,7 @@ Para validar a compilação, pare o servidor de desenvolvimento e execute
 As fotos ficam em `.data/uploads`, fora do diretório público. PNG, JPEG, GIF
 e WebP são aceitos até 8 MB. A API exige login; fotos registradas são visíveis
 para o autor e participantes de desafios que incluem a data do treino.
+Fotos de perfil e capa do desafio são privadas e visíveis aos membros.
 O banco e os uploads devem ser incluídos nos backups.
 
 Variáveis lidas pelo app:

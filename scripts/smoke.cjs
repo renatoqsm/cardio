@@ -7,6 +7,7 @@ if (process.env.SUPABASE_URL || process.env.STORAGE_BACKEND === 'supabase') thro
 const base = process.env.SMOKE_URL || process.env.BETTER_AUTH_URL;
 const users = [];
 const challenges = [];
+const proofs = [];
 let checks = 0;
 function check(condition, message) { assert.ok(condition, message); checks++; console.log('PASS:', message); }
 async function request(url, options = {}, cookie) {
@@ -28,7 +29,7 @@ async function signup(name) {
 }
 async function main() {
   const page = await request('/');
-  check(page.ok && (await page.text()).includes('Entre no seu ritmo.'), 'Login page rendered');
+  check(page.ok && (await page.text()).includes('Preparando seu espaço'), 'Application shell rendered');
   check((await request('/api/challenges')).status === 401, 'Anonymous challenges denied');
   const owner = await signup('Owner');
   const member = await signup('Member');
@@ -48,21 +49,53 @@ async function main() {
   check((await request('/api/upload', { method: 'POST', body: invalid }, owner.cookie)).status === 400, 'Disguised non-image rejected');
   const upload = await request('/api/upload', { method: 'POST', body: form }, owner.cookie);
   check(upload.ok, 'Local image upload');
-  const { pathname } = await upload.json();
-  const record = { action: 'record', recordDate: '2026-10-07', minutes: 30, kilometers: '5,0', pace: '6:30', proofPathname: pathname };
+  const { pathname } = await upload.json(); proofs.push(pathname);
+  const record = { submissionKey: crypto.randomUUID(), action: 'record', recordDate: '2026-10-07', minutes: 30, kilometers: '5,0', pace: '6:30', proofPathname: pathname };
   const saved = await post('/api/challenges', record, owner.cookie);
   check(saved.ok, `Cardio record saved${saved.ok ? '' : ': ' + (await saved.json()).error}`);
-  check(Number((await saved.json()).record.pace) === 6.5, 'Pace in minutes/seconds stored correctly');
-  check((await post('/api/challenges', { ...record, minutes: 40, pace: '' }, owner.cookie)).ok, 'Daily record updated with blank pace');
+  const first = (await saved.json()).record;
+  check(Number(first.pace) === 6.5, 'Pace in minutes/seconds stored correctly');
+  const retries = await Promise.all([post('/api/challenges', record, owner.cookie), post('/api/challenges', record, owner.cookie)]);
+  const retried = await Promise.all(retries.map(r => r.json()));
+  check(retries.every(r => r.ok) && retried.every(r => r.alreadyPublished && r.record.id === first.id), 'Concurrent retries preserve one workout');
+  const second = await post('/api/challenges', { ...record, submissionKey: crypto.randomUUID(), minutes: 40, kilometers: 2, pace: '' }, owner.cookie);
+  check(second.ok && (await second.json()).record.id !== first.id, 'Second same-day workout saved separately with blank pace');
   check((await post('/api/challenges', { ...record, minutes: '' }, owner.cookie)).status === 400, 'Missing minutes rejected');
   check((await post('/api/challenges', { ...record, kilometers: 'invalid' }, owner.cookie)).status === 400, 'Invalid distance rejected');
   check((await post('/api/challenges', { ...record, pace: '6:90' }, owner.cookie)).status === 400, 'Invalid pace rejected');
   check((await post('/api/challenges', record, member.cookie)).status === 400, 'Another user cannot claim proof');
   const feed = await request('/api/challenges?challengeId=' + challenge.id, {}, member.cookie);
   const data = await feed.json();
-  check(feed.ok && data.feed.length === 1 && data.feed[0].minutes === 40, `Member feed contains updated record exactly once (status ${feed.status}, records ${data.feed?.length}, minutes ${data.feed?.[0]?.minutes})`);
-  check(data.leaderboard.find(p => p.id === owner.id)?.kilometers === 5, 'Leaderboard totals match record');
-  check(data.feed[0].pace === null, 'Blank pace preserved in feed');
+  check(feed.ok && data.feed.length === 2, 'Feed retains both same-day workouts without retry duplicates');
+  const totals = data.leaderboard.find(p => p.id === owner.id);
+  check(totals?.kilometers === 7 && totals.minutes === 70, 'Ranking sums both workouts: 7 km and 70 minutes');
+  check(totals.workouts === 2 && totals.activeDays === 1, 'Member shows two workouts on one active day');
+  check(Math.abs(totals.pace - (6.5 * 5 + 40) / 7) < 0.00001, 'Average pace weighted by distance; empty pace derived from duration');
+  check(data.feed.some(r => r.pace === null) && data.feed.some(r => Number(r.pace) === 6.5), 'Both original and blank pace preserved');
+  check(data.members.length === 2 && data.members.every(m => m.joinedAt) && data.members.find(m => m.id === owner.id).isOwner, 'Members include join date and administrator');
+  const photos = [];
+  for (let i = 0; i < 2; i++) {
+    const photo = await request('/api/upload', { method: 'POST', body: form }, owner.cookie);
+    check(photo.ok, 'Challenge photo upload ' + (i + 1));
+    const uploaded = (await photo.json()).pathname; photos.push(uploaded); proofs.push(uploaded);
+  }
+  const settings = { action: 'update', challengeId: challenge.id, name: 'Nossa turma', description: 'Um passo de cada vez.', goalType: 'time', startDate: '2020-01-01', endDate: '2099-12-31', profilePathname: photos[0], coverPathname: photos[1] };
+  check((await post('/api/challenges', settings, member.cookie)).status === 403, 'Only administrator can personalize challenge');
+  check((await post('/api/challenges', settings, owner.cookie)).ok, 'Administrator saves avatar, cover and description');
+  const personalized = await (await request('/api/challenges?challengeId=' + challenge.id, {}, member.cookie)).json();
+  const c = personalized.challenges.find(c => c.id === challenge.id);
+  check(c.name === settings.name && c.description === settings.description && c.profilePathname === photos[0] && c.coverPathname === photos[1], 'Members receive personalized challenge');
+  check(personalized.leaderboard[0].minutes === 70 && c.memberCount === 2, 'Changing challenge metric retains correct totals and member count');
+  check((await post('/api/challenges', { ...settings, startDate: '2026-02-30' }, owner.cookie)).status === 400, 'Invalid challenge calendar date rejected');
+  for (const photo of photos) {
+    check((await request(photo, {}, member.cookie)).status === 200, 'Member can view challenge image that is not a workout proof');
+    check((await request(photo, {}, outsider.cookie)).status === 404, 'Outsider cannot view private challenge image');
+    check((await request(photo)).status === 401, 'Anonymous cannot view private challenge image');
+  }
+  const foreign = await request('/api/upload', { method: 'POST', body: form }, outsider.cookie);
+  check(foreign.ok, 'Outsider own image upload');
+  const foreignPath = (await foreign.json()).pathname; proofs.push(foreignPath);
+  check((await post('/api/challenges', { ...settings, profilePathname: foreignPath }, owner.cookie)).status === 400, 'Administrator cannot claim another account image');
   for (const [label, cookie, status] of [['Owner', owner.cookie, 200], ['Member', member.cookie, 200], ['Outsider', outsider.cookie, 404], ['Anonymous', undefined, 401]]) {
     const proof = await request(pathname, {}, cookie);
     check(proof.status === status, label + ' image access');
