@@ -8,7 +8,7 @@
 - Gratuito: musculação, até 5 pessoas por desafio.
 - Premium: cardio e musculação, até 200 pessoas por desafio.
 - A assinatura de um desafio não concede Premium a outros desafios.
-- Asaas é o primeiro checkout em avaliação. Ainda não existe integração de cobrança ativa.
+- Asaas foi escolhido; o proprietário criou uma conta de produção. A cobrança no Pulso ainda não está ativa.
 
 ## Padrões propostos para implementação
 
@@ -61,10 +61,29 @@ O checkout recebe o pagamento; o aplicativo controla os benefícios.
 
 ## Pré-requisitos pendentes
 
-Criar/validar a conta comercial Asaas e verificar as taxas e métodos disponíveis.
-Validar na documentação vigente o checkout hospedado de assinatura e sua API;
-a consulta aos sites oficiais foi bloqueada pelo proxy HTTP deste ambiente (403).
-Não presumir que um link de cobrança comum ativa renovação automática do cartão.
+A conta de produção foi criada. Ainda é necessário salvar a chave da API no
+campo seguro `ASAAS_API_KEY`, publicar a configuração e validar o cadastro
+comercial, as taxas e os métodos disponíveis. `ASAAS_ENVIRONMENT=production`
+foi preparado como variável de ambiente não secreta. Os destinos do Asaas foram
+adicionados à rede, preservando os destinos anteriores.
+
+A documentação oficial foi consultada após a configuração da rede. O checkout
+recorrente usa `POST /v3/checkouts`, `billingTypes=[CREDIT_CARD]`,
+`chargeTypes=[RECURRENT]` e `subscription.cycle=MONTHLY` ou `YEARLY`. A URL de
+retorno não comprova pagamento. Checkout, assinatura e cada cobrança recorrente
+têm eventos distintos; a implementação completa precisa acompanhar os três.
+
+Fontes verificadas:
+- https://docs.asaas.com/docs/checkout-com-assinatura-recorrente
+- https://docs.asaas.com/reference/criar-novo-checkout
+- https://docs.asaas.com/docs/eventos-para-checkout
+- https://docs.asaas.com/docs/link-do-checkout-e-redirecionamento-do-cliente
+
+A base em `lib/billing` define preços, períodos pagos e limites, e implementa o
+cliente de checkout recorrente do Asaas. `node scripts/test-billing.cjs` valida
+25 casos com respostas simuladas, sem chamadas reais ao provedor. Ela ainda não
+está ligada aos controles do aplicativo, à persistência de assinaturas ou aos
+webhooks; não foi publicada uma restrição sem checkout funcional.
 
 Configurar credenciais somente em configurações seguras, sem versioná-las:
 `ASAAS_API_KEY`, ambiente de testes/produção e token de autenticação dos webhooks.
