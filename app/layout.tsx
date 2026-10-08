@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import './themes.css'
+import { themeBootstrap } from '@/lib/theme'
 import { InstallApp } from '@/components/install-app'
 
 export const metadata: Metadata = {
@@ -11,11 +13,10 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light',
   themeColor: '#26351f',
   userScalable: true,
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="pt-BR"><body className="antialiased">{children}<InstallApp /></body></html>
+  return <html lang="pt-BR" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: themeBootstrap }} /></head><body className="antialiased">{children}<InstallApp /></body></html>
 }

@@ -143,3 +143,13 @@ do iPhone. O service worker armazena somente a página pública de falta de cone
 e os ícones. Desafios, fotos privadas e respostas de autenticação não são
 armazenados nesse cache. É necessário internet para acessar e publicar treinos;
 não há envio de registros offline.
+
+## Temas
+
+O botão de lua/sol no topo alterna entre o tema claro original e o tema escuro,
+com superfícies grafite e detalhes em verde neon. Também está disponível antes
+do login. A preferência fica em `localStorage` (`pulso-theme`), no navegador
+ou aplicativo em uso, e é aplicada antes da primeira pintura da página.
+A opção inicial continua sendo o tema claro. Abas do mesmo navegador sincronizam
+a alteração; se o navegador bloquear armazenamento, a troca ainda funciona
+na visita atual. A tela sem conexão também respeita o tema escolhido.

@@ -1,5 +1,5 @@
 // Only public offline assets are cached. Auth, feeds and photos always use the network.
-const CACHE = 'pulso-public-v1';
+const CACHE = 'pulso-public-v2';
 const ASSETS = ['/offline.html', '/icons/pulso-192.png', '/icons/pulso-512.png', '/icons/pulso-maskable-512.png', '/icons/pulso-apple-180.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));

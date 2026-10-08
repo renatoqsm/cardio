@@ -1,0 +1,71 @@
+/* Light remains the default. Dark uses graphite surfaces and electric lime accents. */
+.theme-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 37px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 11px; background: #fff; color: var(--ink); font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.theme-toggle-floating { position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px; }
+.auth-screen { position: relative; padding-top: 80px; padding-bottom: 90px; }
+@media (max-width: 760px) { .topbar-actions .theme-toggle { padding: 8px; width: 35px; min-height: 35px; } .topbar-actions .theme-toggle span { display: none; } }
+
+html.dark {
+  color-scheme: dark;
+  --background: #0d0f12; --foreground: #f2f5ee;
+  --card: #15191e; --card-foreground: #f2f5ee;
+  --popover: #1c2228; --popover-foreground: #f2f5ee;
+  --primary: #c7ff47; --primary-foreground: #12170d;
+  --secondary: #20272d; --secondary-foreground: #f2f5ee;
+  --muted: #20272d; --muted-foreground: #adb4bd;
+  --accent: #26351b; --accent-foreground: #c7ff47;
+  --destructive: #ff9b91; --border: #30373e; --input: #30373e; --ring: #c7ff47;
+  --ink: #f2f5ee; --soft-ink: #adb4bd; --line: #30373e;
+  --paper: #0d0f12; --lime: #c7ff47; --forest: #c7ff47;
+  --surface: #15191e; --surface-raised: #1c2228; --accent-surface: #202d19;
+}
+.dark :is(.sidebar, .challenge-hero, .feed-composer, .feed-card, .summary-card, .ranking-panel, .members-panel, .dialog, .panel-empty, .mobile-challenges, .auth-card) { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.dark .auth-screen { background: var(--paper); }
+.dark .hub-topbar { background: #0d0f12e6; }
+.dark :is(.button.secondary, .theme-toggle, .challenge-management button) { background: var(--surface-raised); color: var(--ink); border-color: var(--line); }
+.dark :is(.button.primary, .auth-submit) { background: var(--lime); color: #12170d; }
+.dark :is(.button.primary:hover, .auth-submit:hover) { background: #d8ff82; }
+.dark :is(.button.secondary:hover, .icon-button:hover, .challenge-nav-item:hover) { background: #262e35; color: var(--ink); }
+.dark :is(.brand-mark, .auth-card .bg-\[\#d9f96d\]) { color: #12170d; background: var(--lime); }
+.dark :is(.brand-dot, .auth-mode-switch, .text-button, .challenge-modality-icon.strength, .challenge-tabs > button[aria-selected="true"], .your-workouts > svg, .section-heading svg, .podium-crown) { color: var(--lime); }
+.dark .challenge-modality-icon.cardio { color: #ffb279; }
+.dark .challenge-nav-item.selected { background: var(--accent-surface); box-shadow: inset 3px 0 var(--lime); }
+.dark .challenge-tabs > button[aria-selected="true"] { border-bottom-color: var(--lime); }
+.dark :is(.avatar, .challenge-picture, .ranking-icon, .composer-plus, .welcome-icon) { background: var(--accent-surface); color: var(--lime); }
+.dark :is(.challenge-picture, .avatar-stack .avatar, .podium-place) { border-color: var(--surface); }
+.dark .challenge-cover:not(.has-image) { background: radial-gradient(ellipse at 10% 140%, #426a1a 0%, transparent 55%), linear-gradient(125deg, #111913, #273b1b); }
+.dark .cover-wordmark { color: #c7ff4770; }
+.dark :is(.sidebar-note, .invite-copy, .hero-stats, .tab-count, .ranking-list-label, .member-role, .camera-photo, .photo-picker label) { background: var(--surface-raised); color: var(--soft-ink); }
+.dark :is(.notice, .movement-note, .record-destinations, .daily-gesture, .challenge-result, .ranking-row.is-you, .feed-filters button[aria-pressed="true"], .you-label, .workout-tag, .member-role.admin) { background: var(--accent-surface); color: #d6f4a7; border-color: #3b5029; }
+.dark :is(.modality-option, .photo-picker-cover label) { background: var(--surface-raised); color: var(--ink); border-color: var(--line); }
+.dark :is(.modality-option:hover, .modality-option:focus-visible) { background: var(--accent-surface); border-color: var(--lime); }
+.dark :is(input, select, textarea) { background-color: var(--surface-raised); color: var(--ink); border-color: var(--line); }
+.dark :is(input, textarea)::placeholder { color: #8f99a5; }
+.dark .member-search input { background: transparent; }
+.dark input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px var(--surface-raised) inset; -webkit-text-fill-color: var(--ink); caret-color: var(--ink); }
+.dark :is(.hero-stats, .hero-stats > div, .challenge-tabs, .feed-metrics > div, .summary-footnote, .mini-rank, .ranking-list, .ranking-list-label, .ranking-row, .member-search, .member-card, .member-activity, .photo-picker label, .camera-photo, .camera-view, .mobile-challenge-scroll > button) { border-color: var(--line); }
+.dark .mobile-challenge-scroll button.selected { background: var(--accent-surface); border-color: #5c7738; }
+.dark :is(.eyebrow, .hint, .sidebar-heading, .sidebar-empty, .sidebar-user small, .challenge-nav-item small, .challenge-nav-item > svg, .desktop-breadcrumb, .today-label, .hero-description, .hero-meta, .hero-stats strong small, .hero-stats > div > span, .challenge-tabs > button, .tab-status, .feed-composer small, .feed-filters button, .feed-card header div > span, .feed-description, .feed-metrics div > span, .feed-metrics small, .your-workouts span, .personal-stats span, .summary-footnote, .goal-progress > div, .rank-number, .mini-rank small, .movement-note p, .panel-empty p, .panel-title p:not(.eyebrow), .members-heading p:not(.eyebrow), .podium-person span small, .podium-person > small, .rank-person > span, .rank-score span, .ranking-note, .member-search, .member-since, .member-numbers span, .member-activity, .field, .photo-caption, .camera-note, .daily-gesture small, .modality-option span, .challenge-result small, .challenge-management, .install-steps) { color: var(--soft-ink); }
+.dark :is(.desktop-breadcrumb strong, .sidebar-note strong, .feed-composer strong, .movement-note h3, .panel-empty h3, .daily-gesture p, .feed-gesture) { color: #d6f4a7; }
+.dark .text-\[\#7b877e\] { color: var(--soft-ink); }
+.dark :is(.error, .text-red-600) { color: #ff9b91; }
+.dark :is(.error-banner, .connection-banner) { background: #361e1c; color: #ffb0a2; }
+.dark .period-warning { background: #302817; border-color: #69552a; color: #f3cf87; }
+.dark .challenge-management button { color: #ffb0a2; }
+.dark .button.danger { background: #943e35; color: #fff; }
+.dark .dialog-backdrop { background: #000000b0; }
+.dark .podium-first .avatar { background: var(--accent-surface); box-shadow: 0 0 0 5px #c7ff4717; }
+.dark .podium-place { background: var(--surface-raised); color: var(--soft-ink); }
+.dark .podium-first .podium-place { background: var(--lime); color: #12170d; }
+.dark .goal-progress progress::-webkit-progress-bar { background: var(--surface-raised); }
+.dark .goal-progress progress::-webkit-progress-value { background: var(--lime); }
+.dark .goal-progress progress::-moz-progress-bar { background: var(--lime); }
+.dark .feed-photo { background: #101215; }
+.dark .install-app-button { background: var(--surface-raised); border-color: #587338; color: var(--lime); }
+.dark :is(button, input, textarea, select):focus-visible { outline-color: var(--lime); }
+.dark .error { background: #361e1c; }
+.dark :is(.photo-remove, .full-proof) { background: var(--surface-raised); color: var(--soft-ink); }
+.dark .icon-button { color: var(--soft-ink); }
+.dark .sidebar-note > svg { color: var(--lime); }
+.dark .challenge-tabs > button[aria-selected="true"] { color: var(--lime); }
+.dark .feed-filters button[aria-pressed="true"] { color: #d6f4a7; }
+.dark .hero-stats strong { color: var(--ink); }
