@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { authClient } from '@/lib/auth-client'
+import { parseRecordInput } from '@/lib/record-input'
 import { Activity, CalendarDays, Copy, Flame, KeyRound, Plus, Ruler, Timer, Trophy, Upload, Users, X, Trash2 } from 'lucide-react'
 
 type Challenge = { id: string; name: string; goalType: string; goalValue: string | null; startDate: string; endDate: string; joinCode: string; ownerId: string }
@@ -77,6 +78,80 @@ function AuthScreen({ mode, setMode, onDone }: any) { const [name, setName] = us
 function Shell({ title, children, onClose }: any) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#152016]/30 p-4 backdrop-blur-sm"><div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-bold">{title}</h2><button onClick={onClose} className="text-xl text-[#89938c]" aria-label="Fechar"><X className="size-5" /></button></div>{children}</div></div> }
 function ChallengeModal({ onClose, onCreated }: any) { const [form, setForm] = useState({ name: '', goalType: 'km', goalValue: '', startDate: today, endDate: today }); const submit = async () => { const r = await fetch('/api/challenges', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'create', ...form }) }); if (r.ok) onCreated() }; return <Shell title="Criar desafio" onClose={onClose}><div className="flex flex-col gap-3"><input className="h-11 rounded-lg border px-3 text-sm" placeholder="Nome do desafio" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /><div className="grid grid-cols-2 gap-3"><select className="h-11 rounded-lg border px-3 text-sm" value={form.goalType} onChange={e => setForm({ ...form, goalType: e.target.value })}><option value="km">Por KM</option><option value="time">Por tempo</option><option value="pace">Por pace</option></select><input className="h-11 rounded-lg border px-3 text-sm" placeholder="Meta (opcional)" value={form.goalValue} onChange={e => setForm({ ...form, goalValue: e.target.value })} /></div><div className="grid grid-cols-2 gap-3"><input type="date" className="h-11 rounded-lg border px-3 text-sm" value={form.startDate} onChange={e => setForm({ ...form, startDate: e.target.value })} /><input type="date" className="h-11 rounded-lg border px-3 text-sm" value={form.endDate} onChange={e => setForm({ ...form, endDate: e.target.value })} /></div><button onClick={submit} className="mt-2 h-11 rounded-lg bg-[#24311e] text-sm font-bold text-white">Criar e gerar chave</button></div></Shell> }
 function JoinModal({ onClose, onJoined }: any) { const [code, setCode] = useState(''); const submit = async () => { const r = await fetch('/api/challenges', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'join', joinCode: code }) }); if (r.ok) onJoined() }; return <Shell title="Entrar com chave" onClose={onClose}><p className="mb-4 text-sm text-[#7b877e]">Cole a chave compartilhada pelo criador do desafio.</p><input autoFocus className="h-12 w-full rounded-lg border px-3 text-center text-lg font-bold uppercase tracking-[.2em]" placeholder="ABC123" value={code} onChange={e => setCode(e.target.value)} /><button onClick={submit} className="mt-4 h-11 w-full rounded-lg bg-[#24311e] text-sm font-bold text-white">Entrar no desafio</button></Shell> }
-function RecordModal({ onClose, onSaved }: any) { const [file, setFile] = useState<File | null>(null), [minutes, setMinutes] = useState(''), [km, setKm] = useState(''), [pace, setPace] = useState(''), [description, setDescription] = useState(''), [preview, setPreview] = useState(''), [submitting, setSubmitting] = useState(false), [error, setError] = useState(''); const submit = async () => { if (!file || !minutes || !km || submitting) { if (!file) setError('Tire uma foto do seu cardio para continuar.'); return; } setSubmitting(true); setError(''); const form = new FormData(); form.append('file', file); try { const upload = await fetch('/api/upload', { method: 'POST', body: form }); const uploaded = await upload.json(); if (!upload.ok) throw new Error(uploaded.error || 'Não foi possível enviar a foto.'); const r = await fetch('/api/challenges', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'record', recordDate: today, minutes, kilometers: km, pace, description, proofPathname: uploaded.pathname }) }); if (!r.ok) { const result = await r.json().catch(() => ({})); throw new Error(result.error || 'Não foi possível publicar o registro.'); } onSaved() } catch (submissionError) { setError(submissionError instanceof Error ? submissionError.message : 'Não foi possível publicar o registro.'); } finally { setSubmitting(false) } }; return <Shell title="Registrar cardio de hoje" onClose={onClose}><p className="mb-4 text-sm text-[#7b877e]">Este registro será contabilizado automaticamente em todos os seus desafios ativos.</p><div className="flex flex-col gap-3"><label className="block cursor-pointer overflow-hidden rounded-xl border border-dashed border-[#b9d65d] bg-[#f8fbeF] text-center text-sm font-bold text-[#6f8d19]">{preview ? <img src={preview} alt="Prévia do comprovante" className="aspect-[4/3] w-full object-cover" /> : <div className="p-6"><Upload className="mx-auto mb-2 size-6" /><span>Tirar foto do comprovante</span><span className="mt-1 block text-[11px] font-normal text-[#829087]">A câmera do celular será aberta</span></div>}<div className="border-t border-[#dfe8d6] px-3 py-2 text-xs">{file ? 'Toque para tirar outra foto' : 'Abrir câmera'}</div><input type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const next = e.target.files?.[0] ?? null; setFile(next); setPreview(next ? URL.createObjectURL(next) : ''); setError('') }} /></label><div className="grid grid-cols-2 gap-3"><input className="h-11 rounded-lg border px-3 text-sm" type="number" placeholder="Minutos" value={minutes} onChange={e => setMinutes(e.target.value)} /><input className="h-11 rounded-lg border px-3 text-sm" type="number" step="0.01" placeholder="KM" value={km} onChange={e => setKm(e.target.value)} /></div><input className="h-11 rounded-lg border px-3 text-sm" placeholder="Pace (opcional)" value={pace} onChange={e => setPace(e.target.value)} /><textarea className="min-h-20 rounded-lg border px-3 py-2 text-sm" placeholder="Descrição (opcional)" value={description} onChange={e => setDescription(e.target.value)} /><button onClick={submit} className="h-11 rounded-lg bg-[#24311e] text-sm font-bold text-white">Publicar no feed</button></div></Shell> }
+function RecordModal({ onClose, onSaved }: any) {
+  const [file, setFile] = useState<File | null>(null)
+  const [minutes, setMinutes] = useState(''), [km, setKm] = useState('')
+  const [pace, setPace] = useState(''), [description, setDescription] = useState('')
+  const [preview, setPreview] = useState(''), [stage, setStage] = useState(''), [error, setError] = useState('')
+  const [proof, setProof] = useState<{ file: File; pathname: string } | null>(null)
+  const submitting = stage !== ''
+  useEffect(() => {
+    if (!file) { setPreview(''); return }
+    const url = URL.createObjectURL(file)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+  const submit = async () => {
+    if (submitting) return
+    setError('')
+    let values
+    try {
+      if (!file) throw new Error('Tire uma foto do seu cardio para continuar.')
+      if (file.size > 8 * 1024 * 1024) throw new Error('A foto deve ter até 8 MB. Escolha uma imagem menor.')
+      values = parseRecordInput({ minutes, kilometers: km, pace })
+    } catch (validationError) { setError((validationError as Error).message); return }
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 60000)
+    const responseError = (status: number, fallback: string) => status === 401
+      ? 'Sua sessão expirou. Entre novamente para publicar.' : fallback
+    try {
+      let pathname = proof?.file === file ? proof.pathname : undefined
+      if (!pathname) {
+        setStage('Enviando foto...')
+        const form = new FormData(); form.append('file', file!)
+        const upload = await fetch('/api/upload', { method: 'POST', body: form, signal: controller.signal })
+        const uploaded = await upload.json().catch(() => null)
+        if (!upload.ok || typeof uploaded?.pathname !== 'string') {
+          throw new Error(responseError(upload.status, uploaded?.error || 'Não foi possível enviar a foto. Tente novamente.'))
+        }
+        pathname = uploaded.pathname
+        setProof({ file: file!, pathname: pathname! })
+      }
+      setStage('Publicando treino...')
+      const response = await fetch('/api/challenges', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+        body: JSON.stringify({ action: 'record', recordDate: today, ...values, description, proofPathname: pathname }),
+      })
+      if (!response.ok) {
+        const result = await response.json().catch(() => null)
+        throw new Error(responseError(response.status, result?.error || 'Não foi possível publicar o treino. Tente novamente.'))
+      }
+      onSaved()
+    } catch (submissionError) {
+      setError(controller.signal.aborted ? 'O envio demorou demais. Confira sua conexão e tente novamente.'
+        : submissionError instanceof TypeError ? 'Não foi possível conectar. Confira sua conexão e tente novamente.'
+        : submissionError instanceof Error ? submissionError.message : 'Não foi possível publicar o treino.')
+    } finally { window.clearTimeout(timeout); setStage('') }
+  }
+  return <Shell title="Registrar cardio de hoje" onClose={onClose}>
+    <p className="mb-4 text-sm text-[#7b877e]">Este registro será contabilizado automaticamente em todos os seus desafios ativos.</p>
+    <form onSubmit={event => { event.preventDefault(); void submit() }} className="flex flex-col gap-3" aria-busy={submitting}>
+      <label className="block cursor-pointer overflow-hidden rounded-xl border border-dashed border-[#b9d65d] bg-[#f8fbeF] text-center text-sm font-bold text-[#6f8d19]">
+        {preview ? <img src={preview} alt="Prévia do comprovante" className="aspect-[4/3] w-full object-cover" /> : <div className="p-6"><Upload className="mx-auto mb-2 size-6" /><span>Tirar foto do comprovante</span><span className="mt-1 block text-[11px] font-normal text-[#829087]">A câmera do celular será aberta</span></div>}
+        <div className="border-t border-[#dfe8d6] px-3 py-2 text-xs">{file ? 'Toque para tirar outra foto' : 'Abrir câmera'}</div>
+        <input aria-label="Foto do comprovante" disabled={submitting} type="file" accept="image/png,image/jpeg,image/gif,image/webp" capture="environment" className="hidden" onChange={event => { setFile(event.target.files?.[0] ?? null); setProof(null); setError('') }} />
+      </label>
+      <p className="text-xs text-[#7b877e]">Foto em PNG, JPEG, GIF ou WebP, até 8 MB.</p>
+      <div className="grid grid-cols-2 gap-3">
+        <input aria-label="Minutos" disabled={submitting} className="h-11 rounded-lg border px-3 text-sm" inputMode="numeric" placeholder="Minutos" value={minutes} onChange={event => setMinutes(event.target.value)} />
+        <input aria-label="Quilômetros" disabled={submitting} className="h-11 rounded-lg border px-3 text-sm" inputMode="decimal" placeholder="KM" value={km} onChange={event => setKm(event.target.value)} />
+      </div>
+      <input aria-label="Pace" disabled={submitting} className="h-11 rounded-lg border px-3 text-sm" placeholder="Pace (opcional): 6:30 ou 6,5" value={pace} onChange={event => setPace(event.target.value)} />
+      <textarea aria-label="Descrição" disabled={submitting} className="min-h-20 rounded-lg border px-3 py-2 text-sm" placeholder="Descrição (opcional)" value={description} onChange={event => setDescription(event.target.value)} />
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+      <button disabled={submitting} type="submit" className="h-11 rounded-lg bg-[#24311e] text-sm font-bold text-white disabled:cursor-wait disabled:opacity-60">{stage || 'Publicar no feed'}</button>
+    </form>
+  </Shell>
+}
 
 void CalendarDays; void Ruler; void Timer

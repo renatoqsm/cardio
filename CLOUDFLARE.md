@@ -14,9 +14,13 @@ A conexão PostgreSQL do Worker usa Hyperdrive com cache desativado, limite de
 cinco conexões à origem e TLS `verify-full`, confiando no certificado oficial
 Supabase Root 2021 CA. Isso corrige a falha `TLS Handshake Failed` da conexão
 direta pelo cliente do Worker. O binding `HYPERDRIVE` está em `wrangler.jsonc`.
-Em 08/10/2026, 26 verificações funcionais passaram na URL pública, incluindo
+Em 07/10/2026, 31 verificações funcionais passaram na URL pública, incluindo
 cadastro, login, saída, desafios, registros, placar e acesso privado às fotos.
 Os dados temporários desse teste foram removidos do banco e do Storage.
+O envio de foto JPEG de 4,3 MB e a publicação com pace vazio passaram.
+O formulário mostra erros, indica o progresso e libera nova tentativa após
+falhas ou 60 segundos sem resposta. Vírgulas na distância e pace em formato
+minutos:segundos são normalizados antes de gravar no banco.
 
 Use **Workers**, não uma publicação estática do Pages. O app possui APIs,
 autenticação, PostgreSQL e fotos privadas. O repositório contém o adaptador

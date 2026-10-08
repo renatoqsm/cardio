@@ -49,15 +49,20 @@ async function main() {
   const upload = await request('/api/upload', { method: 'POST', body: form }, owner.cookie);
   check(upload.ok, 'Local image upload');
   const { pathname } = await upload.json();
-  const record = { action: 'record', recordDate: '2026-10-07', minutes: 30, kilometers: 5, proofPathname: pathname };
+  const record = { action: 'record', recordDate: '2026-10-07', minutes: 30, kilometers: '5,0', pace: '6:30', proofPathname: pathname };
   const saved = await post('/api/challenges', record, owner.cookie);
   check(saved.ok, `Cardio record saved${saved.ok ? '' : ': ' + (await saved.json()).error}`);
-  check((await post('/api/challenges', { ...record, minutes: 40 }, owner.cookie)).ok, 'Daily record updated');
+  check(Number((await saved.json()).record.pace) === 6.5, 'Pace in minutes/seconds stored correctly');
+  check((await post('/api/challenges', { ...record, minutes: 40, pace: '' }, owner.cookie)).ok, 'Daily record updated with blank pace');
+  check((await post('/api/challenges', { ...record, minutes: '' }, owner.cookie)).status === 400, 'Missing minutes rejected');
+  check((await post('/api/challenges', { ...record, kilometers: 'invalid' }, owner.cookie)).status === 400, 'Invalid distance rejected');
+  check((await post('/api/challenges', { ...record, pace: '6:90' }, owner.cookie)).status === 400, 'Invalid pace rejected');
   check((await post('/api/challenges', record, member.cookie)).status === 400, 'Another user cannot claim proof');
   const feed = await request('/api/challenges?challengeId=' + challenge.id, {}, member.cookie);
   const data = await feed.json();
   check(feed.ok && data.feed.length === 1 && data.feed[0].minutes === 40, `Member feed contains updated record exactly once (status ${feed.status}, records ${data.feed?.length}, minutes ${data.feed?.[0]?.minutes})`);
   check(data.leaderboard.find(p => p.id === owner.id)?.kilometers === 5, 'Leaderboard totals match record');
+  check(data.feed[0].pace === null, 'Blank pace preserved in feed');
   for (const [label, cookie, status] of [['Owner', owner.cookie, 200], ['Member', member.cookie, 200], ['Outsider', outsider.cookie, 404], ['Anonymous', undefined, 401]]) {
     const proof = await request(pathname, {}, cookie);
     check(proof.status === status, label + ' image access');
