@@ -22,6 +22,7 @@ export const GET = withDatabase(async (_request: Request, context: { params: Pro
       JOIN challenge_member viewer ON viewer."challengeId" = c.id
       WHERE r."proofPathname" = ${pathname} AND r."userId" = ${owner}
         AND viewer."userId" = ${session.user.id}
+        AND r.modality = c.modality
         AND r."recordDate" BETWEEN c."startDate" AND c."endDate"
       UNION ALL
       SELECT 1 FROM challenge c

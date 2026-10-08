@@ -1,6 +1,6 @@
 # Pulso
 
-Aplicativo de desafios de cardio com amigos, feito com Next.js, React,
+Aplicativo de desafios de cardio e musculação com amigos, feito com Next.js, React,
 Better Auth, Drizzle e PostgreSQL. Não depende de serviços da Vercel.
 
 Para publicar na Cloudflare Workers com banco e fotos no Supabase, siga
@@ -10,17 +10,30 @@ URL publicada: https://cardio.renatoqsousam.workers.dev
 
 ## Desafios e feed
 
-Cada desafio tem capa, foto de perfil, descrição e abas Feed, Ranking e Membros.
-O administrador personaliza a identidade e as regras em **Personalizar**.
-O feed mostra cada treino separadamente, com foto, atividade e métricas, e pode
-ser filtrado para seus próprios treinos. Os membros têm busca, indicação do
-administrador e resumo da participação; o ranking mostra pódio e totais.
+Cada desafio tem modalidade (Cardio ou Musculação), capa, foto de perfil,
+descrição e abas Feed, Ranking e Membros. A modalidade é escolhida na criação
+e preservada ao editar. O administrador personaliza a identidade em
+**Personalizar**.
 
-É possível publicar vários cardios no mesmo dia. O ranking soma todos no
-período do desafio, incluindo as datas de início e fim; reenvios da mesma
-publicação não duplicam o treino. O formulário avisa quando a data está fora
-do período do desafio aberto. Ao salvar, confirma se o treino entrou nesse
-ranking ou foi preservado fora do período.
+**Adicionar registro** fica na navegação global, disponível mesmo sem
+participar de desafios. Primeiro você escolhe a modalidade. Cardio pede foto,
+data, minutos, distância e pace/descrição opcionais; Musculação pede foto,
+data e descrição opcional. O formulário mostra todos os desafios elegíveis.
+Cada registro conta automaticamente em todos os desafios da mesma modalidade
+em que a pessoa participa, dentro do período de cada um, incluindo início e
+fim. Fora desses períodos, o registro é salvo sem alterar esses rankings.
+
+Cardio aceita vários registros no mesmo dia, com ranking por distância,
+tempo ou pace. Musculação aceita um único check-in por pessoa/data, garantido
+por índice único no banco mesmo com envios simultâneos. Reenvios preservam
+o registro existente. Seu ranking usa somente o total de check-ins diários;
+empates têm a mesma posição. Após o fim, o ranking mostra o vencedor ou os
+líderes empatados. Feed, fotos privadas e estatísticas respeitam a modalidade.
+
+O feed mostra cada treino com foto e pode ser filtrado para seus próprios
+registros. Os membros têm busca, indicação do administrador e resumo da
+participação. Os desafios e treinos antigos permanecem como Cardio.
+
 O pace médio é ponderado pela distância, usando minutos/distância quando o
 pace não foi preenchido. Registros anteriormente substituídos pela antiga
 regra de um cardio por dia não podem ser recuperados automaticamente.

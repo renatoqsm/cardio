@@ -119,6 +119,60 @@ async function main() {
   }
   const bounded = await (await request('/api/challenges?challengeId=' + windowChallenge.id, {}, owner.cookie)).json();
   check(bounded.feed.length === 2 && bounded.leaderboard[0].kilometers === 3 && bounded.leaderboard[0].minutes === 30, 'Start/end inclusive; before/after dates excluded from ranking');
+  const cardioGroups = [], strengthGroups = [];
+  for (let i = 0; i < 5; i++) {
+    const result = await post('/api/challenges', { action: 'create', modality: 'cardio', name: 'Cardio ' + i, goalType: 'km', startDate: '2026-10-08', endDate: '2026-10-15' }, owner.cookie);
+    check(result.ok, 'Cardio challenge created ' + i); const c = (await result.json()).challenge; challenges.push(c.id); cardioGroups.push(c);
+  }
+  for (let i = 0; i < 3; i++) {
+    const result = await post('/api/challenges', { action: 'create', modality: 'strength', name: 'Musculação ' + i, goalType: 'checkins', startDate: i === 2 ? '2026-10-16' : '2026-10-08', endDate: '2026-10-20' }, owner.cookie);
+    check(result.ok, 'Strength challenge created ' + i); const c = (await result.json()).challenge; challenges.push(c.id); strengthGroups.push(c);
+    check(c.modality === 'strength' && c.goalType === 'checkins', 'Strength has fixed check-in ranking ' + i);
+  }
+  check((await post('/api/challenges', { action: 'create', modality: 'strength', name: 'Invalid', goalType: 'km', startDate: '2026-10-08', endDate: '2026-10-15' }, owner.cookie)).status === 400, 'Strength rejects distance ranking');
+  check((await post('/api/challenges', { ...settings, modality: 'strength', goalType: 'checkins' }, owner.cookie)).status === 400, 'Existing challenge modality cannot be switched');
+  for (const [minutes, kilometers] of [[5, 2], [10, 3]]) {
+    const response = await post('/api/challenges', { ...record, modality: 'cardio', submissionKey: crypto.randomUUID(), recordDate: '2026-10-10', minutes, kilometers }, owner.cookie);
+    check(response.ok, 'Additional same-day cardio saved'); const result = await response.json();
+    check(cardioGroups.every(c => result.countedChallengeIds.includes(c.id)) && strengthGroups.every(c => !result.countedChallengeIds.includes(c.id)), 'One cardio counts in all five cardio challenges and no strength challenge');
+  }
+  const strengthUpload = await request('/api/upload', { method: 'POST', body: form }, owner.cookie);
+  check(strengthUpload.ok, 'Strength proof uploaded'); const strengthPath = (await strengthUpload.json()).pathname; proofs.push(strengthPath);
+  const strengthRecord = { action: 'record', modality: 'strength', recordDate: '2026-10-10', proofPathname: strengthPath, description: 'Treino de pernas', minutes: 999, kilometers: 999 };
+  const concurrent = await Promise.all(Array.from({ length: 3 }, () => post('/api/challenges', { ...strengthRecord, submissionKey: crypto.randomUUID() }, owner.cookie)));
+  const concurrentBodies = await Promise.all(concurrent.map(r => r.json()));
+  check(concurrent.every(r => r.ok) && new Set(concurrentBodies.map(r => r.record?.id)).size === 1 && concurrentBodies.filter(r => !r.alreadyPublished).length === 1, 'Concurrent different submissions produce exactly one daily strength check-in');
+  check(concurrentBodies.every(r => strengthGroups.slice(0, 2).every(c => r.countedChallengeIds.includes(c.id)) && !r.countedChallengeIds.includes(strengthGroups[2].id) && cardioGroups.every(c => !r.countedChallengeIds.includes(c.id))), 'Strength counts in all eligible strength challenges only');
+  check(concurrentBodies.every(r => r.record.minutes === 0 && Number(r.record.kilometers) === 0 && r.record.pace === null), 'Cardio metrics cannot influence strength ranking');
+  const duplicate = await (await post('/api/challenges', { ...strengthRecord, submissionKey: crypto.randomUUID(), description: 'Must not replace' }, owner.cookie)).json();
+  check(duplicate.alreadyPublished && duplicate.record.description === strengthRecord.description, 'Second daily strength check-in preserves original record');
+  check((await request(strengthPath, {}, member.cookie)).status === 404, 'Cardio membership does not grant strength-only proof access');
+  check((await post('/api/challenges', { action: 'join', joinCode: strengthGroups[0].joinCode }, member.cookie)).ok, 'Member joins strength challenge');
+  check((await request(strengthPath, {}, member.cookie)).status === 200, 'Strength membership grants strength proof access');
+  const nextDay = await post('/api/challenges', { ...strengthRecord, recordDate: '2026-10-11', submissionKey: crypto.randomUUID() }, owner.cookie);
+  check(nextDay.ok && !(await nextDay.json()).alreadyPublished, 'Next day permits another strength check-in');
+  const memberUpload = await request('/api/upload', { method: 'POST', body: form }, member.cookie);
+  check(memberUpload.ok, 'Member own strength proof upload'); const memberPath = (await memberUpload.json()).pathname; proofs.push(memberPath);
+  const memberCheckin = await post('/api/challenges', { ...strengthRecord, proofPathname: memberPath, submissionKey: crypto.randomUUID() }, member.cookie);
+  check(memberCheckin.ok && !(await memberCheckin.json()).alreadyPublished, 'Daily strength limit is per person');
+  for (const c of strengthGroups.slice(0, 2)) {
+    const data = await (await request('/api/challenges?challengeId=' + c.id, {}, owner.cookie)).json();
+    const ownerRank = data.leaderboard.find(m => m.id === owner.id);
+    check(ownerRank.checkIns === 2 && ownerRank.workouts === 2 && ownerRank.kilometers === 0 && ownerRank.minutes === 0 && data.feed.every(r => r.modality === 'strength'), 'Strength feed and ranking use only daily check-ins for ' + c.name);
+    check(data.leaderboard[0].id === owner.id, 'Most check-ins ranks first for ' + c.name);
+  }
+  for (const c of cardioGroups) {
+    const data = await (await request('/api/challenges?challengeId=' + c.id, {}, owner.cookie)).json();
+    check(data.feed.length === 4 && data.feed.every(r => r.modality === 'cardio') && data.leaderboard[0].kilometers === 8, 'Cardio retains multiple workouts and ignores strength for ' + c.name);
+  }
+  const outsideStrength = await (await request('/api/challenges?challengeId=' + strengthGroups[2].id, {}, owner.cookie)).json();
+  check(outsideStrength.feed.length === 0 && outsideStrength.leaderboard[0].checkIns === 0, 'Strength honors challenge period');
+  const noChallenge = await post('/api/challenges', { ...strengthRecord, proofPathname: foreignPath, submissionKey: crypto.randomUUID() }, outsider.cookie);
+  check(noChallenge.ok, 'Global strength record allowed without any challenge');
+  check((await noChallenge.json()).countedChallengeIds.length === 0, 'No-challenge publication does not leak or count in other groups');
+  check((await post('/api/challenges', { ...record, modality: 'invalid', submissionKey: crypto.randomUUID() }, owner.cookie)).status === 400, 'Unknown record modality rejected');
+  check((await post('/api/challenges', { ...strengthRecord, proofPathname: foreignPath, submissionKey: crypto.randomUUID() }, owner.cookie)).status === 400, 'Strength cannot claim another person proof');
+  check((await post('/api/challenges', strengthRecord)).status === 401, 'Anonymous strength check-in denied');
   check((await request('/api/challenges?challengeId=' + challenge.id, { method: 'DELETE' }, member.cookie)).status === 403, 'Member cannot delete owner challenge');
   check((await request('/api/challenges?challengeId=' + challenge.id, { method: 'DELETE' }, owner.cookie)).ok, 'Owner can delete challenge');
   const logout = await post('/api/auth/sign-out', {}, owner.cookie);

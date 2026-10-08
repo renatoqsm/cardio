@@ -14,7 +14,7 @@ A conexão PostgreSQL do Worker usa Hyperdrive com cache desativado, limite de
 cinco conexões à origem e TLS `verify-full`, confiando no certificado oficial
 Supabase Root 2021 CA. Isso corrige a falha `TLS Handshake Failed` da conexão
 direta pelo cliente do Worker. O binding `HYPERDRIVE` está em `wrangler.jsonc`.
-Em 07/10/2026, 61 verificações funcionais passaram na URL pública, incluindo
+Em 07/10/2026, 104 verificações funcionais passaram na URL pública, incluindo
 cadastro, login, saída, vários cardios no mesmo dia, proteção contra reenvios
 duplicados, totais do ranking, personalização e acesso privado às fotos do
 desafio. A migração preservou os registros e associações existentes.
@@ -25,6 +25,14 @@ do período e a mensagem de confirmação respeita esse resultado.
 Feed, pódio, busca de membros, editor de fotos e layout móvel foram verificados
 no navegador local; os assets publicados e a navegação login/cadastro também
 foram verificados no navegador.
+A atualização Cardio/Musculação foi validada com um registro contando em
+cinco desafios de cardio e um check-in contando em dois desafios de musculação.
+Três envios simultâneos com identificadores diferentes produziram somente
+um check-in diário. Fotos e rankings respeitam a modalidade; registros sem
+desafios também podem ser salvos. O fluxo global, os campos separados, os
+empates/resultados e a tela móvel passaram na conferência do navegador com
+assets publicados e respostas simuladas; os testes da API usam o banco e o
+Storage reais.
 Os dados temporários desse teste foram removidos do banco e do Storage.
 O envio de foto JPEG de 4,3 MB e a publicação com pace vazio passaram.
 O formulário mostra erros, indica o progresso e libera nova tentativa após
@@ -43,6 +51,10 @@ OpenNext e a configuração Wrangler; o nome do Worker é `cardio`.
    `supabase/migrations` em ordem antes de publicar a nova versão.
    `20261007_challenge_hub.sql` adiciona a identidade do desafio e permite
    vários treinos no mesmo dia, preservando os registros existentes.
+   `20261008_training_modalities.sql` adiciona Cardio/Musculação e garante
+   um check-in de musculação por pessoa/data; os dados anteriores permanecem
+   como Cardio. A tabela histórica `cardio_record` armazena as duas modalidades,
+   mantendo as sete tabelas e as políticas de acesso existentes.
    O script ativa RLS sem políticas públicas, impedindo acesso anônimo via
    Data API. A conexão PostgreSQL do servidor deve ter acesso às tabelas.
 3. Em Storage, crie o bucket **privado** `cardio-proofs`. Permita imagens

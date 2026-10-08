@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm'
 import { getAuth } from '@/lib/auth'
 import { getDatabase, withDatabase } from '@/lib/db'
 import { readProof, validFilename } from '@/lib/storage'
@@ -39,13 +39,13 @@ export const GET = withDatabase(async (request: Request) => {
     const counts = await db.select({ challengeId: challengeMember.challengeId, count: sql<number>`count(*)::int` }).from(challengeMember).where(inArray(challengeMember.challengeId, memberships.map(item => item.challenge.id))).groupBy(challengeMember.challengeId)
     const members = await db.select({ id: user.id, name: user.name, image: user.image, joinedAt: challengeMember.joinedAt }).from(challengeMember).innerJoin(user, eq(challengeMember.userId, user.id)).where(eq(challengeMember.challengeId, active.id))
     const memberIds = members.map(member => member.id)
-    const records = memberIds.length === 0 ? [] : await db.select({ id: cardioRecord.id, userId: cardioRecord.userId, name: user.name, image: user.image, recordDate: cardioRecord.recordDate, minutes: cardioRecord.minutes, kilometers: cardioRecord.kilometers, pace: cardioRecord.pace, activityType: cardioRecord.activityType, proofPathname: cardioRecord.proofPathname, description: cardioRecord.description, createdAt: cardioRecord.createdAt }).from(cardioRecord).innerJoin(user, eq(cardioRecord.userId, user.id)).where(and(inArray(cardioRecord.userId, memberIds), gte(cardioRecord.recordDate, active.startDate), lte(cardioRecord.recordDate, active.endDate))).orderBy(desc(cardioRecord.createdAt), desc(cardioRecord.id))
+    const records = memberIds.length === 0 ? [] : await db.select({ id: cardioRecord.id, modality: cardioRecord.modality, userId: cardioRecord.userId, name: user.name, image: user.image, recordDate: cardioRecord.recordDate, minutes: cardioRecord.minutes, kilometers: cardioRecord.kilometers, pace: cardioRecord.pace, activityType: cardioRecord.activityType, proofPathname: cardioRecord.proofPathname, description: cardioRecord.description, createdAt: cardioRecord.createdAt }).from(cardioRecord).innerJoin(user, eq(cardioRecord.userId, user.id)).where(and(inArray(cardioRecord.userId, memberIds), eq(cardioRecord.modality, active.modality), gte(cardioRecord.recordDate, active.startDate), lte(cardioRecord.recordDate, active.endDate))).orderBy(desc(cardioRecord.createdAt), desc(cardioRecord.id))
     const leaderboard = members.map(member => {
       const mine = records.filter(record => record.userId === member.id)
       const kilometers = mine.reduce((sum, record) => sum + Number(record.kilometers), 0)
       const paceTime = mine.reduce((sum, record) => Number(record.kilometers) > 0 ? sum + (record.pace ? Number(record.pace) * Number(record.kilometers) : record.minutes) : sum, 0)
-      return { ...member, isOwner: member.id === active.ownerId, workouts: mine.length, activeDays: new Set(mine.map(record => record.recordDate)).size, lastTrainingDate: mine.map(record => record.recordDate).sort().at(-1) ?? null, minutes: mine.reduce((sum, record) => sum + record.minutes, 0), kilometers, pace: kilometers > 0 ? paceTime / kilometers : null }
-    }).sort((a, b) => (active.goalType === 'pace' ? (a.pace ?? Infinity) - (b.pace ?? Infinity) : active.goalType === 'time' ? b.minutes - a.minutes : b.kilometers - a.kilometers) || b.workouts - a.workouts || a.name.localeCompare(b.name, 'pt-BR'))
+      return { ...member, isOwner: member.id === active.ownerId, workouts: mine.length, checkIns: new Set(mine.map(record => record.recordDate)).size, activeDays: new Set(mine.map(record => record.recordDate)).size, lastTrainingDate: mine.map(record => record.recordDate).sort().at(-1) ?? null, minutes: mine.reduce((sum, record) => sum + record.minutes, 0), kilometers, pace: kilometers > 0 ? paceTime / kilometers : null }
+    }).sort((a, b) => (active.modality === 'strength' ? b.checkIns - a.checkIns : active.goalType === 'pace' ? (a.pace ?? Infinity) - (b.pace ?? Infinity) : active.goalType === 'time' ? b.minutes - a.minutes : b.kilometers - a.kilometers) || b.workouts - a.workouts || a.name.localeCompare(b.name, 'pt-BR'))
     return NextResponse.json({ user: me, challenges: memberships.map(item => ({ ...item.challenge, memberCount: counts.find(count => count.challengeId === item.challenge.id)?.count ?? 0 })), selectedChallengeId: active.id, leaderboard, members: leaderboard, feed: records }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) { return failure(error) }
 })
@@ -78,6 +78,10 @@ export const POST = withDatabase(async (request: Request) => {
       if (body.action === 'update' && !(await db.select({ id: challenge.id }).from(challenge).where(and(eq(challenge.id, String(body.challengeId)), eq(challenge.ownerId, me.id))))[0]) throw new RequestError('Só quem criou o desafio pode editá-lo', 403)
       let values
       try { values = parseChallengeInput(body) } catch (error) { throw new RequestError((error as Error).message) }
+      if (body.action === 'update') {
+        const [existing] = await db.select({ modality: challenge.modality }).from(challenge).where(eq(challenge.id, String(body.challengeId)))
+        if (existing.modality !== values.modality) throw new RequestError('A modalidade do desafio não pode ser alterada. Crie outro desafio para a nova modalidade.')
+      }
       const media = { profilePathname: await ownedPhoto(body.profilePathname, me.id), coverPathname: await ownedPhoto(body.coverPathname, me.id) }
       if (body.action === 'update') {
         const [updated] = await db.update(challenge).set({ ...values, ...media }).where(and(eq(challenge.id, String(body.challengeId)), eq(challenge.ownerId, me.id))).returning()
@@ -88,17 +92,20 @@ export const POST = withDatabase(async (request: Request) => {
       return NextResponse.json({ challenge: created })
     }
     if (body.action === 'record') {
+      const modality = body.modality ?? 'cardio'
+      if (modality !== 'cardio' && modality !== 'strength') throw new RequestError('Escolha Cardio ou Musculação.')
       let values
-      try { values = parseRecordInput(body) } catch (error) { throw new RequestError((error as Error).message) }
+      try { values = modality === 'strength' ? { minutes: 0, kilometers: '0', pace: null } : parseRecordInput(body) } catch (error) { throw new RequestError((error as Error).message) }
       if (typeof body.recordDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.recordDate) || Number.isNaN(Date.parse(body.recordDate)) || new Date(body.recordDate).toISOString().slice(0, 10) !== body.recordDate) throw new RequestError('Informe uma data válida para o treino.')
       const pathname = await ownedPhoto(body.proofPathname, me.id)
       if (!pathname) throw new RequestError('Envie seu comprovante antes de registrar o treino')
       if (body.submissionKey != null && (typeof body.submissionKey !== 'string' || !/^[0-9a-f-]{36}$/i.test(body.submissionKey))) throw new RequestError('Identificador de publicação inválido. Abra o formulário novamente.')
       const submissionKey = body.submissionKey || `proof:${pathname}`
-      const record = { id: id(), challengeId: null, userId: me.id, submissionKey, recordDate: body.recordDate, ...values, activityType: typeof body.activityType === 'string' ? body.activityType.slice(0, 40) : 'Cardio', proofPathname: pathname, description: typeof body.description === 'string' ? body.description.trim().slice(0, 1500) || null : null, createdAt: new Date() }
-      const [created] = await db.insert(cardioRecord).values(record).onConflictDoNothing({ target: [cardioRecord.userId, cardioRecord.submissionKey] }).returning()
-      const saved = created ?? (await db.select().from(cardioRecord).where(and(eq(cardioRecord.userId, me.id), eq(cardioRecord.submissionKey, submissionKey))))[0]
-      const counted = await db.select({ id: challenge.id }).from(challengeMember).innerJoin(challenge, eq(challengeMember.challengeId, challenge.id)).where(and(eq(challengeMember.userId, me.id), lte(challenge.startDate, saved.recordDate), gte(challenge.endDate, saved.recordDate)))
+      const record = { id: id(), challengeId: null, userId: me.id, modality, submissionKey, recordDate: body.recordDate, ...values, activityType: modality === 'strength' ? 'Musculação' : typeof body.activityType === 'string' ? body.activityType.slice(0, 40) : 'Cardio', proofPathname: pathname, description: typeof body.description === 'string' ? body.description.trim().slice(0, 1500) || null : null, createdAt: new Date() }
+      const [created] = await db.insert(cardioRecord).values(record).onConflictDoNothing().returning()
+      const saved = created ?? (await db.select().from(cardioRecord).where(and(eq(cardioRecord.userId, me.id), or(eq(cardioRecord.submissionKey, submissionKey), ...(modality === 'strength' ? [and(eq(cardioRecord.modality, 'strength'), eq(cardioRecord.recordDate, body.recordDate))!] : [])))))[0]
+      if (!saved || saved.modality !== modality) throw new RequestError('Esta publicação já foi concluída. Abra um novo registro.', 409)
+      const counted = await db.select({ id: challenge.id }).from(challengeMember).innerJoin(challenge, eq(challengeMember.challengeId, challenge.id)).where(and(eq(challengeMember.userId, me.id), eq(challenge.modality, saved.modality), lte(challenge.startDate, saved.recordDate), gte(challenge.endDate, saved.recordDate)))
       return NextResponse.json({ record: saved, alreadyPublished: !created, countedChallengeIds: counted.map(item => item.id) })
     }
     throw new RequestError('Ação inválida')
