@@ -7,6 +7,16 @@
     "nodejs_compat"
   ],
   "workers_dev": true,
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "0d1443f965a946a8895d12f758e1078b"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"

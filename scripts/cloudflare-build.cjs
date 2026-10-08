@@ -11,6 +11,7 @@ const result = spawnSync(process.execPath, [cli, 'build'], {
     XDG_CONFIG_HOME: path.join(local, 'config'),
     WRANGLER_LOG_PATH: path.join(local, 'wrangler.log'),
     WRANGLER_SEND_METRICS: 'false',
+    CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE: process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE || 'postgresql://postgres:local@127.0.0.1:5432/postgres',
   },
 });
 if (result.status !== 0 || result.error) process.exit(result.status || 1);
