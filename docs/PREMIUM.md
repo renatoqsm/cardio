@@ -121,12 +121,39 @@ nem o corpo completo dos webhooks no aplicativo.
    o histórico; cardio e grupos de musculação acima de 5 ficam para consulta
    até contratar. Convidados nunca precisam de assinatura própria.
 
-Na sessão de configuração, a chave válida foi encontrada no campo errado
-`ASAAS_ENVIRONMENT` e autenticou uma consulta somente de leitura. O binding
-`ASAAS_API_KEY` retornou 401; a correção comunicada pelo proprietário ainda não
-foi observada no processo desta sessão. Uma saída de diagnóstico mostrou
-indevidamente o valor do campo errado; substituir essa chave antes de ativar a
-cobrança. Não guardar nem versionar os valores das credenciais.
+### Validação da conta e do webhook em 08/10/2026
+
+A configuração publicada agora fornece `ASAAS_ENVIRONMENT=production` e a
+chave correta. `GET /v3/myAccount/status` e `GET /v3/webhooks` retornaram 200.
+O cadastro continua com informações comerciais aprovadas, dados bancários
+pendentes, documentação rejeitada e aprovação geral pendente.
+
+A chave foi instalada como segredo no Worker. Um token aleatório independente
+foi gerado em memória e instalado como segredo `ASAAS_WEBHOOK_TOKEN` no Worker
+e no webhook Asaas; seu valor não foi impresso nem salvo no repositório. O
+webhook está ativo, não interrompido, API v3, entrega sequencial, com 23 eventos
+de checkout, assinatura e cobrança. O endereço é o endpoint documentado acima.
+As notificações operacionais usam o e-mail já registrado na conta Asaas.
+Preservar essa configuração: não trocar o token de um lado sem atualizar o outro.
+
+O teste direto do endpoint público com token correto retornou 200; com token
+incorreto, 401. O evento artificial criado para essa verificação foi removido
+por seu identificador exato, sem alterar dados dos usuários. Essa verificação
+confirma autenticação e persistência do receptor; não substitui uma entrega de
+pagamento real originada pelo Asaas.
+
+A tentativa de criar checkout mensal recorrente foi recusada com HTTP 400,
+`invalid_object`: “A criação do checkout está desabilitada. Regularize a
+situação cadastral.” Nenhum checkout, cartão, assinatura ou pagamento real foi
+criado nesse teste. As cobranças no aplicativo continuam desativadas;
+o endpoint público de contratação retornou 503 conforme a configuração.
+
+A próxima etapa depende da regularização documental/bancária no painel Asaas,
+até a liberação do checkout. Depois repetir a criação/cancelamento sem pagamento
+e validar o ciclo financeiro no sandbox, sem cobrar alguém somente para testar.
+Não precisa fornecer outra chave pelo chat. A chave configurada autentica; o
+bloqueio atual é cadastral. Não ativar o Premium enquanto o checkout permanecer
+bloqueado. A chave anteriormente exposta no diagnóstico não deve ser reutilizada.
 
 ### Publicação preparada
 
