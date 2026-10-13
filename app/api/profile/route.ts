@@ -1,3 +1,4 @@
+import { achievementsForUsers } from '@/lib/achievement-store'
 import { headers } from 'next/headers'
 import { getAuth } from '@/lib/auth'
 import { getDatabase, withDatabase } from '@/lib/db'
@@ -10,7 +11,7 @@ async function profile(id: string) {
 export const GET = withDatabase(async () => {
   const me = await current()
   if (!me) return Response.json({error:'Não autenticado'},{status:401})
-  return Response.json({profile:await profile(me.id)},{headers:{'Cache-Control':'private, no-store'}})
+  return Response.json({profile:await profile(me.id),achievements:(await achievementsForUsers([me.id])).get(me.id)},{headers:{'Cache-Control':'private, no-store'}})
 })
 export const POST = withDatabase(async (request: Request) => {
   const me = await current()
@@ -39,5 +40,5 @@ export const POST = withDatabase(async (request: Request) => {
     await client.query('COMMIT')
   } catch (error) { await client.query('ROLLBACK'); throw error }
   finally { client.release() }
-  return Response.json({profile:await profile(me.id)},{headers:{'Cache-Control':'private, no-store'}})
+  return Response.json({profile:await profile(me.id),achievements:(await achievementsForUsers([me.id])).get(me.id)},{headers:{'Cache-Control':'private, no-store'}})
 })

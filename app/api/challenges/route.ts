@@ -1,3 +1,6 @@
+import { after } from 'next/server'
+import { drainNotifications } from '@/lib/push-dispatch'
+import { achievementsForUsers } from '@/lib/achievement-store'
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { and, desc, eq, gte, inArray, lte, or, isNull, sql, exists } from 'drizzle-orm'
@@ -41,19 +44,22 @@ export const GET = withDatabase(async (request: Request) => {
     const me = await currentUser(), { db } = getDatabase()
     const selectedId = new URL(request.url).searchParams.get('challengeId')
     const memberships = await db.select({ challenge }).from(challengeMember).innerJoin(challenge, eq(challengeMember.challengeId, challenge.id)).where(eq(challengeMember.userId, me.id)).orderBy(desc(challenge.createdAt))
+    const myAchievements = (await achievementsForUsers([me.id])).get(me.id)!
+    const decoratedMe = {...me,medals:myAchievements.medals}
     const active = memberships.find(item => item.challenge.id === selectedId)?.challenge ?? memberships[0]?.challenge
-    if (!active) return NextResponse.json({ user: me, billingEnabled: billingEnabled(), challenges: [], leaderboard: [], members: [], feed: [] }, { headers: { 'Cache-Control': 'no-store' } })
+    if (!active) return NextResponse.json({ user: decoratedMe, billingEnabled: billingEnabled(), challenges: [], leaderboard: [], members: [], feed: [] }, { headers: { 'Cache-Control': 'no-store' } })
     const counts = await db.select({ challengeId: challengeMember.challengeId, count: sql<number>`count(*)::int` }).from(challengeMember).where(inArray(challengeMember.challengeId, memberships.map(item => item.challenge.id))).groupBy(challengeMember.challengeId)
     const members = await db.select({ id: user.id, name: user.name, image: user.image, joinedAt: challengeMember.joinedAt }).from(challengeMember).innerJoin(user, eq(challengeMember.userId, user.id)).where(eq(challengeMember.challengeId, active.id))
     const memberIds = members.map(member => member.id)
+    const certifications = await achievementsForUsers(memberIds)
     const records = memberIds.length === 0 ? [] : await db.select({ id: cardioRecord.id, captureDay: cardioRecord.captureDay, gestureId: cardioRecord.gestureId, modality: cardioRecord.modality, userId: cardioRecord.userId, name: user.name, image: user.image, recordDate: cardioRecord.recordDate, minutes: cardioRecord.minutes, kilometers: cardioRecord.kilometers, pace: cardioRecord.pace, activityType: cardioRecord.activityType, proofPathname: cardioRecord.proofPathname, description: cardioRecord.description, createdAt: cardioRecord.createdAt }).from(cardioRecord).innerJoin(user, eq(cardioRecord.userId, user.id)).where(and(inArray(cardioRecord.userId, memberIds), eq(cardioRecord.modality, active.modality), gte(cardioRecord.recordDate, active.startDate), lte(cardioRecord.recordDate, active.endDate), ...(billingEnabled() ? [exists(db.select({ id: recordChallenge.recordId }).from(recordChallenge).where(and(eq(recordChallenge.recordId, cardioRecord.id), eq(recordChallenge.challengeId, active.id))))] : []))).orderBy(desc(cardioRecord.createdAt), desc(cardioRecord.id))
     const leaderboard = members.map(member => {
       const mine = records.filter(record => record.userId === member.id)
       const kilometers = mine.reduce((sum, record) => sum + Number(record.kilometers), 0)
       const paceTime = mine.reduce((sum, record) => Number(record.kilometers) > 0 ? sum + (record.pace ? Number(record.pace) * Number(record.kilometers) : record.minutes) : sum, 0)
-      return { ...member, isOwner: member.id === active.ownerId, workouts: mine.length, checkIns: new Set(mine.map(record => record.recordDate)).size, activeDays: new Set(mine.map(record => record.recordDate)).size, lastTrainingDate: mine.map(record => record.recordDate).sort().at(-1) ?? null, minutes: mine.reduce((sum, record) => sum + record.minutes, 0), kilometers, pace: kilometers > 0 ? paceTime / kilometers : null }
+      return { ...member, medals:certifications.get(member.id)?.medals??[], isOwner: member.id === active.ownerId, workouts: mine.length, checkIns: new Set(mine.map(record => record.recordDate)).size, activeDays: new Set(mine.map(record => record.recordDate)).size, lastTrainingDate: mine.map(record => record.recordDate).sort().at(-1) ?? null, minutes: mine.reduce((sum, record) => sum + record.minutes, 0), kilometers, pace: kilometers > 0 ? paceTime / kilometers : null }
     }).sort((a, b) => (active.modality === 'strength' ? b.checkIns - a.checkIns : active.goalType === 'pace' ? (a.pace ?? Infinity) - (b.pace ?? Infinity) : active.goalType === 'time' ? b.minutes - a.minutes : b.kilometers - a.kilometers) || b.workouts - a.workouts || a.name.localeCompare(b.name, 'pt-BR'))
-    return NextResponse.json({ user: me, billingEnabled: billingEnabled(), challenges: await Promise.all(memberships.map(async item => { const memberCount = counts.find(count => count.challengeId === item.challenge.id)?.count ?? 0; return { ...item.challenge, memberCount, billing: await accessForChallenge(item.challenge.id,item.challenge.modality as 'cardio' | 'strength',memberCount) } })), selectedChallengeId: active.id, leaderboard, members: leaderboard, feed: records }, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json({ user: decoratedMe, billingEnabled: billingEnabled(), challenges: await Promise.all(memberships.map(async item => { const memberCount = counts.find(count => count.challengeId === item.challenge.id)?.count ?? 0; return { ...item.challenge, memberCount, billing: await accessForChallenge(item.challenge.id,item.challenge.modality as 'cardio' | 'strength',memberCount) } })), selectedChallengeId: active.id, leaderboard, members: leaderboard, feed: records.map(record=>({...record,medals:certifications.get(record.userId)?.medals??[]})) }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) { return failure(error) }
 })
 
@@ -141,7 +147,7 @@ export const POST = withDatabase(async (request: Request) => {
       const priorPublication = (await db.select({id:cardioRecord.id}).from(cardioRecord).where(and(eq(cardioRecord.userId,me.id),eq(cardioRecord.submissionKey,submissionKey),eq(cardioRecord.modality,modality),eq(cardioRecord.recordDate,body.recordDate))))[0]
       if (billingEnabled() && modality === 'cardio' && destinations.length === 0 && !priorPublication) throw new RequestError('Para registrar cardio, participe de um desafio de cardio com Premium ativo e período compatível.',403)
       const record = { id: id(), challengeId: null, userId: me.id, modality, submissionKey, captureDay: capture.captureDay, gestureId: capture.gestureId, recordDate: body.recordDate, ...values, activityType: modality === 'strength' ? 'Musculação' : typeof body.activityType === 'string' ? body.activityType.slice(0, 40) : 'Cardio', proofPathname: pathname, description: typeof body.description === 'string' ? body.description.trim().slice(0, 1500) || null : null, createdAt: new Date() }
-      return await db.transaction(async db => {
+      const publication = await db.transaction(async db => {
       await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext('workout-publication'),hashtext(${me.id}))`)
       const removed = await db.execute(sql`SELECT 1 FROM deleted_submission WHERE \"userId\"=${me.id} AND \"submissionKey\"=${submissionKey}`)
       if(removed.rowCount) throw new RequestError('Este registro foi excluído. Abra um novo registro para publicar novamente.',409)
@@ -174,9 +180,21 @@ export const POST = withDatabase(async (request: Request) => {
         saved = existing; alreadyPublished = !created
       }
       if (!alreadyPublished) for (const challengeId of destinations) await db.insert(recordChallenge).values({recordId:saved.id,challengeId}).onConflictDoNothing()
+      if (!alreadyPublished && !replaced && destinations.length) await db.execute(sql`
+        INSERT INTO notification_outbox ("recordId","subscriptionId","challengeId")
+        SELECT ${saved.id},s.id,min(viewer."challengeId") FROM push_subscription s
+        JOIN challenge_member viewer ON viewer."userId"=s."userId"
+        JOIN challenge_member author ON author."challengeId"=viewer."challengeId" AND author."userId"=${me.id}
+        LEFT JOIN notification_preference p ON p."userId"=s."userId"
+        WHERE s.enabled AND s."userId"<>${me.id} AND viewer."challengeId" IN (${sql.join(destinations.map(destination=>sql`${destination}`),sql`, `)})
+        AND CASE WHEN ${modality}='cardio' THEN coalesce(p.cardio,true) ELSE coalesce(p.strength,true) END
+        GROUP BY s.id ON CONFLICT DO NOTHING
+      `)
       const counted = await db.select({id:recordChallenge.challengeId}).from(recordChallenge).where(eq(recordChallenge.recordId,saved.id))
       return NextResponse.json({ record: saved, alreadyPublished, replaced, countedChallengeIds: counted.map(item => item.id) })
       })
+      if (publication.ok) after(async () => { try { await drainNotifications() } catch { console.error('Push background dispatch deferred') } })
+      return publication
     }
     throw new RequestError('Ação inválida')
   } catch (error) { return failure(error) }

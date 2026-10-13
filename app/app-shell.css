@@ -110,3 +110,52 @@ body:has(.app-shell) .install-app-button { display: none; }
 /* Personal tools stay out of the main dashboard until requested. */
 .goal-overview{display:flex;align-items:center;gap:14px;width:100%;padding:18px;text-align:left;border:1px solid var(--line);border-radius:20px;background:var(--surface);color:inherit}.goal-overview>span:nth-child(2){flex:1;min-width:0}.goal-overview strong,.goal-overview small{display:block}.goal-overview small{font-size:12px;color:var(--soft-ink);margin-top:5px;line-height:1.5}.goal-symbol{color:var(--forest)}.personal-goals,.personal-history{max-width:900px;margin:auto}.personal-goals h1,.personal-history h1{font-size:32px;font-weight:800;margin:8px 0}.goal-week-summary,.goal-form,.goal-progress-list{padding:22px;margin-top:20px;background:var(--surface);border:1px solid var(--line);border-radius:20px}.goal-week-summary>*{display:block;margin-top:6px}.goal-week-summary small{color:var(--soft-ink)}.goal-form fieldset{border:0;padding:0;display:grid;gap:16px}.goal-progress-row{margin:16px 0}.goal-progress-row>div{display:flex;justify-content:space-between;gap:12px;margin-bottom:8px}.goal-progress-row progress{width:100%;accent-color:var(--forest)}.history-filters{display:flex;flex-wrap:wrap;gap:14px;margin:22px 0;align-items:end}.history-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.history-proof{width:100%;max-height:320px;object-fit:cover}.record-social{padding:14px 18px;border-top:1px solid var(--line)}.reaction-row{display:flex;gap:8px;flex-wrap:wrap}.reaction-row button{padding:8px 12px;border-radius:20px;background:var(--surface);display:flex;gap:5px;align-items:center;border:1px solid var(--line)}.reaction-row button[aria-pressed=true]{border-color:var(--forest)}.comment-list{display:grid;gap:16px;margin:18px 0;max-height:45vh;overflow:auto}.comment-row{display:flex;gap:10px;padding-bottom:12px;border-bottom:1px solid var(--line)}.comment-row>div{flex:1;min-width:0}.comment-row p{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:6px}.comment-row small{display:block;color:var(--soft-ink);font-size:11px}.comment-form{display:grid;gap:10px}.comment-form textarea{width:100%;min-height:80px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:inherit}.finished-result{margin:20px 0;padding:24px;border-radius:20px;background:var(--surface);border:1px solid var(--line)}.result-team-totals{display:flex;flex-wrap:wrap;gap:14px;margin:18px 0}.result-team-totals>span{padding:12px;background:var(--surface);border-radius:12px}.result-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.invite-link-input{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:inherit;margin:14px 0}.result-preview{width:100%;max-height:55vh;object-fit:contain;border-radius:14px}.personal-history>.button{margin-top:20px}
 @media(max-width:600px){.history-list{grid-template-columns:1fr}.goal-progress-row>div{font-size:13px}.goal-overview{padding:14px;gap:10px}.goal-overview small{font-size:11px}.history-filters>.field{flex:1;min-width:120px}.finished-result{padding:18px}}
+
+/* Compact lifetime totals leave the weekly dashboard as the main focus. */
+.app-home { gap: 24px; }
+.app-stats { gap: 9px; }
+.app-stat { min-height: 106px; padding: 16px 14px; border-radius: 18px; gap: 7px; }
+.app-stat > svg { width: 18px; height: 18px; margin-bottom: 3px; }
+.app-stat strong { font-size: 24px; letter-spacing: -.6px; }
+.app-stat > span { font-size: 11px; }
+.app-stat strong small { font-size: 12px; }
+.goal-dashboard { display: block; width: 100%; padding: 24px; border: 1px solid var(--line); border-radius: 24px; background: linear-gradient(135deg,var(--accent-surface),var(--surface) 65%); color: var(--ink); text-align: left; cursor: pointer; }
+.goal-dashboard-header { display: flex; justify-content: space-between; align-items: center; gap: 18px; }
+.goal-dashboard-header > span:first-child { flex: 1; min-width: 0; }
+.goal-dashboard-header > span:first-child > * { display: block; }
+.goal-dashboard-header strong { margin: 8px 0; font-size: 22px; line-height: 1.25; letter-spacing: -.6px; }
+.goal-dashboard-header small:not(.eyebrow) { color: var(--soft-ink); font-size: 12px; }
+.goal-ring { width: 86px; height: 86px; border-radius: 50%; padding: 6px; flex-shrink: 0; }
+.goal-ring > span { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 50%; background: var(--surface); }
+.goal-ring strong { margin: 0; font-size: 21px; }
+.goal-ring small { font-size: 10px !important; }
+.goal-dashboard-metrics { display: grid; gap: 18px; margin-top: 24px; }
+.goal-dashboard-row { display: block; }
+.goal-metric-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; font-size: 13px; }
+.goal-metric-heading > span { display: flex; align-items: center; gap: 8px; color: var(--soft-ink); }
+.goal-metric-heading svg { color: var(--forest); flex-shrink: 0; }
+.goal-metric-heading strong { white-space: nowrap; }
+.goal-metric-heading strong small { color: var(--soft-ink); font-weight: 400; }
+.goal-dashboard progress { display: block; appearance: none; width: 100%; height: 8px; border: 0; border-radius: 10px; overflow: hidden; background: var(--line); }
+.goal-dashboard progress::-webkit-progress-bar { background: var(--line); border-radius: 10px; }
+.goal-dashboard progress::-webkit-progress-value { background: var(--forest); border-radius: 10px; }
+.goal-dashboard progress::-moz-progress-bar { background: var(--forest); border-radius: 10px; }
+.goal-dashboard-empty { display: block; margin: 18px 0; max-width: 450px; color: var(--soft-ink); line-height: 1.6; font-size: 13px; }
+.goal-dashboard-footer { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 11px; color: var(--soft-ink); }
+.goal-dashboard-footer > span:last-child { display: flex; gap: 4px; align-items: center; color: var(--forest); font-weight: 700; flex-shrink: 0; }
+.profile-identity { display: flex; align-items: center; gap: 12px; padding: 10px 0 22px; }
+.name-medals { display: inline-flex; gap: 5px; margin-left: 7px; vertical-align: middle; line-height: 1; }
+.medal-mark { --medal: #90ab77; display: inline-flex; align-items: center; justify-content: center; position: relative; width: 64px; height: 70px; flex-shrink: 0; background: var(--surface-raised); border: 2px solid var(--medal); border-radius: 18px 18px 27px 27px; color: var(--medal); box-shadow: inset 0 0 0 4px var(--surface); }
+.medal-mark > span { position: absolute; bottom: 6px; font-size: 10px; font-weight: 800; letter-spacing: .5px; }
+.medal-mark > svg { margin-top: -10px; }
+.medal-level-2 { --medal: #c38c5b; }.medal-level-3 { --medal: #a4b6c5; }.medal-level-4 { --medal: #d5ac3d; }.medal-level-5 { --medal: #72bfa6; }.medal-level-6 { --medal: #70bdd7; }.medal-level-7 { --medal: #a494e2; }.medal-level-8 { --medal: #e69b72; }
+.medal-small { width: 23px; height: 27px; border-radius: 6px 6px 10px 10px; border-width: 1px; box-shadow: none; }.medal-small > svg { margin-top: -5px; }.medal-small > span { bottom: 2px; font-size: 6px; letter-spacing: 0; }
+.app-greeting h1 .name-medals { margin-left: 12px; }.app-greeting h1 .medal-mark { color: var(--medal); }
+.achievement-gallery,.notification-settings { margin-top: 26px; padding-top: 24px; border-top: 1px solid var(--line); }
+.profile-section-title { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }.profile-section-title > svg { color: var(--forest); }.profile-section-title h3 { font-size: 18px; font-weight: 750; }.profile-section-title p { font-size: 12px; color: var(--soft-ink); margin-top: 4px; }
+.achievement-filters { display: flex; gap: 9px; margin: 18px 0; }.achievement-filters button { display: flex; align-items: center; gap: 7px; padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--soft-ink); font-size: 12px; }.achievement-filters button[aria-pressed=true] { background: var(--accent-surface); color: var(--forest); border-color: var(--forest); }
+.achievement-grid { display: grid; gap: 12px; margin-bottom: 16px; }.achievement-card { display: grid; grid-template-columns: 64px minmax(0,1fr); align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }.achievement-card h4 { font-size: 15px; font-weight: 700; margin: 4px 0; }.achievement-card p,.achievement-card small { font-size: 11px; color: var(--soft-ink); }.achievement-card.is-earned { background: linear-gradient(135deg,var(--accent-surface),var(--surface) 70%); }.achievement-card.is-locked .medal-mark { opacity: .45; }.certification-stamp { grid-column: 2; display: flex; gap: 5px; align-items: center; color: var(--forest); font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }.achievement-card progress { grid-column: 2; width: 100%; accent-color: var(--forest); height: 5px; }.achievement-progress { grid-column: 2; display: flex; gap: 5px; align-items: center; }
+.notification-options { border: 0; padding: 0; margin: 18px 0; }.notification-options legend { font-size: 12px; color: var(--soft-ink); margin-bottom: 10px; }.notification-options label { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; gap: 12px; font-size: 14px; }.notification-options input { width: 34px; height: 20px; accent-color: var(--forest); }
+.notification-highlight { animation: notification-highlight 2s ease-out; }@keyframes notification-highlight { from { box-shadow: 0 0 0 3px var(--forest); } to { box-shadow: 0 0 0 0 transparent; } }
+@media(max-width:600px) { .app-stat { padding: 13px 12px; gap: 5px; }.app-stat strong { font-size: 22px; }.app-stat > svg { margin-bottom: 0; }.app-stat > span { font-size: 10px; }.goal-dashboard { padding: 20px 18px; }.goal-dashboard-header strong { font-size: 19px; }.goal-ring { width: 76px; height: 76px; }.goal-ring strong { font-size: 19px; }.goal-metric-heading { font-size: 12px; gap: 6px; }.goal-dashboard-footer { font-size: 10px; gap: 8px; }.achievement-card { padding: 12px; }.profile-section-title h3 { font-size: 16px; } }
+@media(prefers-reduced-motion:reduce) { .notification-highlight { animation: none; } }

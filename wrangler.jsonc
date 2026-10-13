@@ -1,12 +1,17 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cardio",
-  "main": ".open-next/worker.js",
+  "main": "worker.mjs",
   "compatibility_date": "2026-10-07",
   "compatibility_flags": [
     "nodejs_compat"
   ],
   "workers_dev": true,
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  },
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
@@ -27,6 +32,8 @@
     "BETTER_AUTH_URL": "https://cardio.renatoqsousam.workers.dev",
     "SUPABASE_URL": "https://qysdfwnbrsllrdjrmwgl.supabase.co",
     "BILLING_ENABLED": "false",
-    "ASAAS_ENVIRONMENT": "production"
+    "ASAAS_ENVIRONMENT": "production",
+    "VAPID_PUBLIC_KEY": "BLRd7P-zVWSPdU5z_rFrClIbHUBj2W0rnBbe1kQn7L6GzDn-Lm9X6uITRzUZ_yLDMSAo1ONiT-06u1Mxr3lA39g",
+    "VAPID_SUBJECT": "https://cardio.renatoqsousam.workers.dev"
   }
 }

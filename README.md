@@ -230,3 +230,37 @@ A migração `20261013_community.sql` é aditiva e deve ser aplicada antes de pu
 Testes locais: `node scripts/test-community.cjs` e `node scripts/test-publication.cjs`,
 com o servidor iniciado para o primeiro. A cobrança continua dependente da flag
 `BILLING_ENABLED`; esta atualização não a ativa.
+
+### Certificações e notificações
+
+O perfil reúne 40 certificações em cinco trilhas com oito níveis: Primeiro passo,
+Bronze, Prata, Ouro, Platina, Diamante, Elite e Lenda. Musculação acompanha
+check-ins e semanas ativas; cardio acompanha distância, tempo e sessões. Cada
+nome mostra somente a medalha de maior nível de cada modalidade. Treinos fora
+dos desafios também contam; datas futuras não contam e exclusões recalculam as
+certificações. A galeria mostra destaques/próximos passos e permite explorar todos
+os níveis por modalidade.
+
+O app instalado pode receber Web Push após ativação explícita em “Meu perfil”.
+A inscrição é por dispositivo, com preferências de cardio/musculação por conta.
+Sair da conta limpa a identificação no service worker e remove a inscrição deste
+aparelho. No iPhone, é necessário iOS 16.4+ e instalação pela tela inicial do Safari.
+
+A migração `20261013_notifications.sql` cria inscrições privadas, preferências e
+uma fila transacional. Um treino gera no máximo um aviso por dispositivo, mesmo
+em vários desafios; substituições e repetições de publicação não geram novos
+avisos. O envio ocorre após a resposta e um cron a cada minuto recupera pendências.
+A entrega revalida membros e preferências. Inscrições expiradas são removidas e
+falhas temporárias têm repetição limitada, com a mesma identificação de aviso.
+
+Configure `VAPID_PUBLIC_KEY` e `VAPID_SUBJECT` como variáveis do Worker;
+`VAPID_PRIVATE_KEY` e `PUSH_JOB_SECRET` são segredos exclusivos do servidor.
+Preserve o par VAPID existente: trocá-lo exige nova inscrição nos dispositivos.
+Não publique o segredo de assinatura nem o segredo do job. O wrapper `worker.mjs`
+preserva o OpenNext e executa o cron pelo contexto normal das rotas.
+
+Para testar localmente, use chaves VAPID de desenvolvimento e defina
+`PUSH_DELIVERY_ENABLED=false` no servidor para impedir envio aos endpoints fictícios.
+Execute `node scripts/test-achievements-notifications.cjs`,
+`node scripts/test-push-delivery.cjs` e `node scripts/test-push-worker.cjs`.
+Os testes de entrega usam transporte simulado e banco isolado; não exigem um celular.

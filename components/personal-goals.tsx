@@ -1,12 +1,17 @@
 'use client'
 import { useEffect,useState } from 'react'
-import { ChevronRight,Target } from 'lucide-react'
+import { ChevronRight,Target,Dumbbell,Timer,Flame } from 'lucide-react'
 import { message,postJSON } from '@/lib/client'
 export type GoalData={goals:{strengthDays:number|null;cardioMinutes:number|null;cardioKilometers:number|null};week:{startDate:string;endDate:string;strengthDays:number;cardioMinutes:number;cardioKilometers:number;activeDays:number};activeWeekStreak:number}
-export function GoalOverview({data,onOpen}:{data:GoalData|null;onOpen:()=>void}){
- const configured=data&&Object.values(data.goals).some(v=>v!==null)
- const progress=data?([['strengthDays','dias de musculação'],['cardioMinutes','min de cardio'],['cardioKilometers','km de cardio']] as const).filter(([key])=>data.goals[key]!==null):[]
- return <button className="goal-overview" onClick={onOpen}><span className="goal-symbol"><Target size={22}/></span><span><strong>{configured?'Sua semana':'Uma meta no seu ritmo'}</strong><small>{configured?progress.map(([key,label])=>`${Number(data!.week[key]).toLocaleString('pt-BR',{maximumFractionDigits:1})}/${data!.goals[key]} ${label}`).join(' · '):'Defina uma meta simples. Descanso também faz parte.'}</small>{data&&data.activeWeekStreak>1&&<small>{data.activeWeekStreak} semanas em movimento</small>}</span><ChevronRight size={18}/></button>
+export function GoalOverview({data,onOpen}:{data:GoalData|null;onOpen:()=>void}) {
+ const goals = ([['strengthDays','Musculação','dias',Dumbbell],['cardioMinutes','Tempo de cardio','min',Timer],['cardioKilometers','Distância de cardio','km',Flame]] as const).filter(([key])=>data?.goals[key]!=null)
+ const percentage = goals.length ? Math.round(goals.reduce((sum,[key])=>sum+Math.min(1,data!.week[key]/data!.goals[key]!),0)/goals.length*100) : 0
+ const format = (n:number) => n.toLocaleString('pt-BR',{maximumFractionDigits:1})
+ const period = data ? `${data.week.startDate.slice(8)}/${data.week.startDate.slice(5,7)} — ${data.week.endDate.slice(8)}/${data.week.endDate.slice(5,7)}` : 'Segunda a domingo'
+ return <button className="goal-dashboard" onClick={onOpen} aria-label="Ver e ajustar metas semanais"><span className="goal-dashboard-header"><span><small className="eyebrow">SEU FOCO DA SEMANA</small><strong>{goals.length?'Cada treino te aproxima.':'Uma meta no seu ritmo.'}</strong><small>{period}</small></span>{goals.length?<span className="goal-ring" style={{background:`conic-gradient(var(--forest) ${percentage*3.6}deg,var(--line) 0deg)`}}><span><strong>{percentage}%</strong><small>da meta</small></span></span>:<span className="goal-symbol"><Target size={30}/></span>}</span>
+ {goals.length>0?<span className="goal-dashboard-metrics">{goals.map(([key,label,unit,Icon])=><span className="goal-dashboard-row" key={key}><span className="goal-metric-heading"><span><Icon size={16}/>{label}</span><strong>{format(data!.week[key])}<small> / {format(data!.goals[key]!)} {unit}</small></strong></span><progress aria-label={`Meta semanal de ${label.toLowerCase()}`} max={data!.goals[key]!} value={Math.min(data!.week[key],data!.goals[key]!)}/></span>)}</span>:<span className="goal-dashboard-empty">Defina seus dias de musculação, minutos ou quilômetros de cardio. Você escolhe o que acompanhar.</span>}
+ <span className="goal-dashboard-footer"><span>{data?.activeWeekStreak&&data.activeWeekStreak>1?`${data.activeWeekStreak} semanas em movimento`:data?`${data.week.activeDays} dias ativos nesta semana`:'No seu ritmo, com espaço para descanso.'}</span><span>{goals.length?'Ajustar metas':'Definir metas'}<ChevronRight size={15}/></span></span>
+ </button>
 }
 export function PersonalGoals({revision,onSaved}:{revision:number;onSaved:()=>void}){
  const [data,setData]=useState<GoalData|null>(null),[strength,setStrength]=useState(''),[minutes,setMinutes]=useState(''),[km,setKm]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[retry,setRetry]=useState(0)
