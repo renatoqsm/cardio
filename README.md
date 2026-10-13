@@ -29,6 +29,19 @@ desativadas até a configuração financeira estar completa.
 `node scripts/test-summary.cjs` executa 11 verificações do resumo autenticado,
 totais únicos, privacidade e calendário mensal contra o ambiente local.
 
+## Compartilhar treino
+
+No próprio registro do feed, **Compartilhar no Instagram** gera uma imagem PNG
+vertical de 1080×1920 com foto, nome, data, modalidade, descrição e a marca Pulso.
+Cardio inclui tempo/distância e pace quando preenchido; musculação mostra o check-in.
+O processamento ocorre no navegador, usando a foto autenticada; a imagem gerada
+não é publicada nem enviada automaticamente a terceiros.
+
+**Compartilhar** abre o menu nativo do celular quando o navegador aceita arquivos;
+o usuário escolhe o Instagram quando disponível. **Baixar imagem** permite salvar
+e selecionar o PNG na galeria ao criar um Story. A publicação depende da ação do
+usuário no Instagram. O botão aparece somente nos registros do próprio usuário.
+
 ## Perfil
 
 No menu lateral, **Meu perfil** permite editar nome, foto, idade (anos) e peso

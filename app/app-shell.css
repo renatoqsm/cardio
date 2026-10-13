@@ -101,3 +101,6 @@ body:has(.app-shell) .install-app-button { display: none; }
 .profile-photo-editor label > span:last-of-type { display: flex; align-items: center; gap: 7px; color: var(--forest); font-size: 13px; }
 .profile-photo-editor input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 .profile-photo-editor > button { background: transparent; border: 0; color: var(--soft-ink); font-size: 12px; cursor: pointer; text-decoration: underline; }
+.share-checkin-button { display: flex; justify-content: center; align-items: center; gap: 9px; width: calc(100% - 36px); margin: 0 18px 18px; min-height: 44px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-raised); color: var(--forest); font-weight: 650; font-size: 12px; cursor: pointer; }
+.story-preview { display: block; width: min(100%,230px); height: auto; border-radius: 15px; margin: 12px auto 20px; }
+.story-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
