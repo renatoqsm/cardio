@@ -142,6 +142,9 @@ export const POST = withDatabase(async (request: Request) => {
       if (billingEnabled() && modality === 'cardio' && destinations.length === 0 && !priorPublication) throw new RequestError('Para registrar cardio, participe de um desafio de cardio com Premium ativo e período compatível.',403)
       const record = { id: id(), challengeId: null, userId: me.id, modality, submissionKey, captureDay: capture.captureDay, gestureId: capture.gestureId, recordDate: body.recordDate, ...values, activityType: modality === 'strength' ? 'Musculação' : typeof body.activityType === 'string' ? body.activityType.slice(0, 40) : 'Cardio', proofPathname: pathname, description: typeof body.description === 'string' ? body.description.trim().slice(0, 1500) || null : null, createdAt: new Date() }
       return await db.transaction(async db => {
+      await db.execute(sql`SELECT pg_advisory_xact_lock(hashtext('workout-publication'),hashtext(${me.id}))`)
+      const removed = await db.execute(sql`SELECT 1 FROM deleted_submission WHERE \"userId\"=${me.id} AND \"submissionKey\"=${submissionKey}`)
+      if(removed.rowCount) throw new RequestError('Este registro foi excluído. Abra um novo registro para publicar novamente.',409)
       const confirmation = (existing: typeof cardioRecord.$inferSelect) => NextResponse.json({
         code: 'STRENGTH_CHECKIN_EXISTS', error: 'Você já registrou um treino de musculação nessa data. Deseja substituí-lo?',
         existingRecord: { id: existing.id, submissionKey: existing.submissionKey, recordDate: existing.recordDate },

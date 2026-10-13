@@ -211,3 +211,22 @@ ou aplicativo em uso, e é aplicada antes da primeira pintura da página.
 A opção inicial continua sendo o tema claro. Abas do mesmo navegador sincronizam
 a alteração; se o navegador bloquear armazenamento, a troca ainda funciona
 na visita atual. A tela sem conexão também respeita o tema escolhido.
+
+### Histórico, metas e comunidade
+
+- “Meus registros” reúne todos os treinos pessoais, com filtros de modalidade/mês,
+  paginação, compartilhamento e exclusão que recalcula os totais.
+- “Minhas metas” configura objetivos semanais opcionais. A home mostra apenas um
+  cartão compacto; a sequência considera semanas ativas e permite dias de descanso.
+- Reações e comentários pertencem ao desafio e exigem participação tanto do autor
+  do treino quanto de quem interage. Autores e administradores podem remover comentários.
+- Convites `/?join=CHAVE` permanecem disponíveis após o login e pedem confirmação
+  para entrar. Desafios encerrados mostram vencedores/empates e geram um Story PNG.
+- Publicações usam a mesma chave em confirmação e repetição. Após falha de rede, o
+  cliente verifica o registro salvo antes de repetir uma única vez. Exclusões guardam
+  a chave para impedir que uma repetição antiga recrie o treino.
+
+A migração `20261013_community.sql` é aditiva e deve ser aplicada antes de publicar.
+Testes locais: `node scripts/test-community.cjs` e `node scripts/test-publication.cjs`,
+com o servidor iniciado para o primeiro. A cobrança continua dependente da flag
+`BILLING_ENABLED`; esta atualização não a ativa.

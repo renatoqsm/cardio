@@ -56,7 +56,7 @@ export function ChallengeEditor({ challenge, premiumEnabled = false, onClose, on
     </form>
   </Dialog>
 }
-export function JoinDialog({ onClose, onJoined }: { onClose: () => void; onJoined: (id: string) => void }) {
-  const [code, setCode] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('')
+export function JoinDialog({ onClose, onJoined, initialCode = '' }: { initialCode?: string; onClose: () => void; onJoined: (id: string) => void }) {
+  const [code, setCode] = useState(initialCode), [busy, setBusy] = useState(false), [error, setError] = useState('')
   return <Dialog title="Sua turma está te esperando" onClose={onClose}><p className="muted editor-intro">Digite a chave que um amigo compartilhou com você.</p><form className="editor-form" onSubmit={async event => { event.preventDefault(); if (busy) return; setBusy(true); setError(''); try { const result = await postJSON('/api/challenges', { action: 'join', joinCode: code }); onJoined(result.challenge.id) } catch (error) { setError(message(error)) } finally { setBusy(false) } }}><label className="field">Chave do desafio<input autoFocus className="invite-input" placeholder="CHAVE" value={code} onChange={event => setCode(event.target.value.toUpperCase())} /></label>{error && <p role="alert" className="error">{error}</p>}<button className="button primary full" disabled={busy || !code.trim()}>{busy ? 'Entrando...' : 'Entrar no desafio'}</button></form></Dialog>
 }

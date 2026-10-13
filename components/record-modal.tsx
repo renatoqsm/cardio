@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowLeft, Dumbbell, Flame } from 'lucide-react'
+import { publishRecord, PublicationError } from '@/lib/publish-record'
 import { parseRecordInput } from '@/lib/record-input'
 import { localDate } from '@/lib/client'
 import { Dialog } from './ui'
@@ -71,27 +72,19 @@ export function RecordModal({ challenges, onClose, onSaved }: { challenges: Chal
         pathname = uploaded.pathname; captureToken = uploaded.captureToken
         setProof({ file: file!, pathname: pathname!, captureToken: captureToken! })
       }
-      setStage('Publicando treino...')
-      const response = await fetch('/api/challenges', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-        body: JSON.stringify({ action: 'record', modality, recordDate, ...values, description, activityType, submissionKey, captureToken, proofPathname: pathname, ...(replacement ? { replaceExisting: true, replaceRecordId: replacement.id, expectedSubmissionKey: replacement.submissionKey } : {}) }),
-      })
-      if (!response.ok) {
-        const result = await response.json().catch(() => null)
-        if (response.status === 409 && result?.code === 'STRENGTH_CHECKIN_EXISTS' && result.existingRecord) { setExisting(result.existingRecord); setReplacement(null); return }
-        throw new Error(responseError(response.status, result?.error || 'Não foi possível publicar o treino. Tente novamente.'))
-      }
-      const result: RecordPublication = await response.json()
+      window.clearTimeout(timeout)
+      const result = await publishRecord({ action: 'record', modality, recordDate, ...values, description, activityType, submissionKey, captureToken, proofPathname: pathname, ...(replacement ? { replaceExisting: true, replaceRecordId: replacement.id, expectedSubmissionKey: replacement.submissionKey } : {}) },setStage)
       onSaved(result)
     } catch (submissionError) {
-      setError(controller.signal.aborted ? 'O envio demorou demais. Confira sua conexão e tente novamente.'
+      if (submissionError instanceof PublicationError && submissionError.status === 409 && submissionError.result?.code === 'STRENGTH_CHECKIN_EXISTS') { setExisting(submissionError.result.existingRecord);setReplacement(null);return }
+      setError(controller.signal.aborted && !proof ? 'O envio demorou demais. Confira sua conexão e tente novamente.'
         : submissionError instanceof TypeError ? 'Não foi possível conectar. Confira sua conexão e tente novamente.'
         : submissionError instanceof Error ? submissionError.message : 'Não foi possível publicar o treino.')
     } finally { window.clearTimeout(timeout); setStage('') }
   }
   if (!modality) return <Dialog title="Adicionar registro" onClose={onClose}><p className="muted editor-intro">O que você treinou? Um registro conta em todos os seus desafios da mesma modalidade, dentro do período de cada um.</p><div className="modality-options"><button className="modality-option" onClick={() => setModality('cardio')}><Flame size={30} /><strong>Cardio</strong><span>Corrida, caminhada, bike e mais.<br />Vários registros por dia.</span></button><button className="modality-option" onClick={() => setModality('strength')}><Dumbbell size={30} /><strong>Musculação</strong><span>Um check-in por dia.<br />A constância soma no ranking.</span></button></div></Dialog>
   if (existing) return <Dialog title="Substituir treino de musculação?" onClose={onClose}><p className="editor-intro">Você já registrou um treino de musculação {recordDate === localDate() ? 'hoje' : `em ${displayDate(recordDate)}`}, deseja substituí-lo?</p><p className="muted editor-intro">A nova foto e descrição substituirão o treino anterior. O ranking continuará contando apenas um check-in nesse dia.</p><div className="replacement-actions"><button className="button secondary" onClick={onClose}>Manter treino anterior</button><button className="button primary" onClick={() => { setReplacement(existing); setExisting(null); setError('') }}>Sim, substituir</button></div></Dialog>
-  return <Dialog title={modality === 'strength'  ? 'Check-in de musculação' : 'Registrar cardio'} onClose={onClose}>
+  return <Dialog title={modality === 'strength'  ? 'Check-in de musculação' : 'Registrar cardio'} onClose={() => { if (!submitting) onClose() }}>
     <button type="button" className="text-button" disabled={submitting} onClick={() => { setModality(null); setError('') }}><ArrowLeft size={15} />Trocar modalidade</button>
     <p className="mb-4 text-sm text-[#7b877e]">{modality === 'strength' ? 'Foto, data e uma descrição opcional. Você pode fazer um check-in de musculação por dia.' : 'Registre tempo, distância e sua foto. Você pode adicionar vários cardios por dia.'}</p>
     {replacement && <p className="period-warning" role="status">Você está substituindo o treino de musculação de {displayDate(recordDate)}. O anterior será mantido até salvar a nova foto e descrição.</p>}
