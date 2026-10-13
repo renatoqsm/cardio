@@ -3,13 +3,13 @@ import { useEffect, useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { applyTheme, themeStorageKey, type Theme } from '@/lib/theme'
 export function ThemeToggle({ floating = false }: { floating?: boolean }) {
-  const [theme, setTheme] = useState<Theme>('light'), [ready, setReady] = useState(false)
+  const [theme, setTheme] = useState<Theme>('dark'), [ready, setReady] = useState(false)
   useEffect(() => {
     const current = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
     applyTheme(current); setTheme(current); setReady(true)
     const sync = (event: StorageEvent) => {
       if (event.key !== themeStorageKey && event.key !== null) return
-      const next = event.newValue === 'dark' ? 'dark' : 'light'
+      const next = event.newValue === 'light' ? 'light' : 'dark'
       applyTheme(next); setTheme(next)
     }
     window.addEventListener('storage', sync)

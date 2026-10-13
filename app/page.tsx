@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowRight, CalendarDays, Check, ChevronRight, Copy, Crown, Dumbbell, Flame, Image as ImageIcon, LogOut, Plus, Search, Settings2, Timer, Trash2, Trophy, Users, Zap } from 'lucide-react'
+import { Download, Menu, Home, History, ArrowDown, ArrowRight, CalendarDays, Check, ChevronRight, Copy, Crown, Dumbbell, Flame, Image as ImageIcon, LogOut, Plus, Search, Settings2, Timer, Trash2, Trophy, Users, Zap } from 'lucide-react'
+import { HomeDashboard, ChallengeCards, todayInBrazil } from '@/components/home-dashboard'
 import { PremiumPanel } from '@/components/premium-panel'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { authClient } from '@/lib/auth-client'
@@ -23,6 +24,7 @@ function status(challenge: Challenge) { const today = localDate(); return today 
 function ChallengePicture({ challenge, small = false }: { challenge: Challenge; small?: boolean }) { return <span className={`challenge-picture ${small ? 'challenge-picture-small' : ''}`}>{challenge.profilePathname ? <img src={challenge.profilePathname} alt={`Foto de ${challenge.name}`} /> : challenge.modality === 'strength' ? <Dumbbell size={small ? 23 : 34} strokeWidth={1.8} /> : <Flame size={small ? 23 : 34} strokeWidth={1.8} />}</span> }
 
 export default function Page() {
+  const [view, setView] = useState<'home' | 'current' | 'completed' | 'challenge'>('home'), [menuOpen, setMenuOpen] = useState(false)
   const [premiumEnabled,setPremiumEnabled] = useState(false)
   const [session, setSession] = useState<{ id: string; name: string; image?: string | null } | null>(null)
   const [challenges, setChallenges] = useState<Challenge[]>([]), [selected, setSelected] = useState<Challenge | null>(null)
@@ -55,10 +57,11 @@ export default function Page() {
     const query=new URLSearchParams(window.location.search)
     const target=query.get('challengeId')||undefined
     if(query.get('checkout')) setNotice('Retorno do checkout recebido. Confira o pagamento no desafio; a liberação depende da confirmação do Asaas.')
+    if (target) setView('challenge')
     void refresh(target)
   }, [refresh])
   useEffect(() => { if (!notice) return; const timeout = window.setTimeout(() => setNotice(''), 5000); return () => window.clearTimeout(timeout) }, [notice])
-  const afterAction = (text: string, id?: string) => { setModal(null); setNotice(text); void refresh(id) }
+  const afterAction = (text: string, id?: string) => { if (id) setView('challenge'); setModal(null); setNotice(text); void refresh(id) }
   const manageChallenge = async () => {
     if (!challengeAction || actionBusy) return
     const { challenge: target, kind } = challengeAction
@@ -69,29 +72,33 @@ export default function Page() {
         ...(kind === 'leave' ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'leave', challengeId: target.id }) } : {}),
       })
       if (!response.ok) { const result = await response.json().catch(() => null); throw new Error(result?.error || 'Não foi possível concluir. Tente novamente.') }
-      selectedId.current = undefined; setTab('feed'); setChallengeAction(null)
+      selectedId.current = undefined; setView('current'); setTab('feed'); setChallengeAction(null)
       afterAction(kind === 'delete' ? 'Desafio excluído. Seus treinos pessoais foram preservados.' : 'Você saiu do desafio. Seus treinos continuam salvos nos outros desafios elegíveis.')
     } catch (error) { setActionError(message(error)) }
     finally { setActionBusy(false) }
   }
   if (loading) return <main className="loading-screen"><Brand /><span className="loading-dot" /><p>Preparando seu espaço…</p></main>
   if (!session) return <>{error && <div className="connection-banner" role="alert">{error} <button onClick={() => void refresh()}>Tentar novamente</button></div>}<AuthScreen mode={authMode} setMode={setAuthMode} onDone={() => refresh()} /></>
-  return <div className="hub">
-    <aside className="sidebar">
+  return <div className="hub app-shell">
+    <aside className="sidebar app-sidebar">
       <Brand />
-      <div className="sidebar-heading"><span>SEUS DESAFIOS</span><button className="icon-button" aria-label="Criar desafio" onClick={() => setModal('create')}><Plus size={18} /></button></div>
-      <nav className="challenge-nav" aria-label="Seus desafios">{challenges.map(item => <button key={item.id} aria-current={selected?.id === item.id ? 'page' : undefined} className={`challenge-nav-item ${selected?.id === item.id ? 'selected' : ''}`} onClick={() => { setTab('feed'); void refresh(item.id) }}><ChallengePicture challenge={item} small /><span><strong>{item.name}</strong><small>{item.modality === 'strength' ? 'Musculação' : 'Cardio'} · {item.memberCount} {item.memberCount === 1 ? 'membro' : 'membros'}</small></span><ChevronRight size={15} /></button>)}{challenges.length === 0 && <p className="sidebar-empty">Sua próxima turma começa aqui.</p>}</nav>
-      <div className="sidebar-actions"><button className="button primary full" onClick={() => setModal('create')}><Plus size={17} />Criar desafio</button><button className="button secondary full" onClick={() => setModal('join')}><Users size={17} />Entrar com chave</button></div>
-      <div className="sidebar-note"><Zap size={20} /><strong>Um treino de cada vez.</strong><p>Vários cardios no mesmo dia? Cada um conta.</p></div>
-      <div className="sidebar-user"><Avatar name={session.name} image={session.image} /><span><strong>{session.name}</strong><small>Seu ritmo. Sua turma.</small></span><button className="icon-button" aria-label="Sair" onClick={async () => { await authClient.signOut(); setSession(null) }}><LogOut size={17} /></button></div>
+      <nav aria-label="Navegação principal" className="app-nav">
+        <button aria-current={view === 'home' ? 'page' : undefined} onClick={() => setView('home')}><Home size={21} />Início</button>
+        <button aria-current={view === 'current' ? 'page' : undefined} onClick={() => setView('current')}><Trophy size={21} />Desafios atuais</button>
+        <button onClick={() => setModal('create')}><Plus size={21} />Criar desafio</button>
+        <button aria-current={view === 'completed' ? 'page' : undefined} onClick={() => setView('completed')}><History size={21} />Desafios concluídos</button>
+        <button onClick={() => setModal('join')}><Users size={21} />Entrar com chave</button>
+      </nav>
+      <div className="sidebar-heading"><span>SUA TURMA</span></div>
+      <nav className="challenge-nav" aria-label="Seus desafios">{challenges.filter(c => c.endDate >= todayInBrazil()).map(item => <button key={item.id} aria-current={view === 'challenge' && selected?.id === item.id ? 'page' : undefined} className={`challenge-nav-item ${view === 'challenge' && selected?.id === item.id ? 'selected' : ''}`} onClick={() => { setView('challenge'); setTab('feed'); void refresh(item.id) }}><ChallengePicture challenge={item} small /><span><strong>{item.name}</strong><small>{item.modality === 'strength' ? 'Musculação' : 'Cardio'}</small></span><ChevronRight size={15} /></button>)}</nav>
+      <div className="app-sidebar-bottom"><button className="button secondary app-install-action" onClick={() => window.dispatchEvent(new Event('pulso-install-request'))}><Download size={18} />Instalar aplicativo</button><ThemeToggle /><div className="sidebar-user"><Avatar name={session.name} image={session.image} /><span><strong>{session.name}</strong><small>Seu ritmo. Sua turma.</small></span><button className="icon-button" aria-label="Sair" onClick={async () => { await authClient.signOut(); setSession(null); setView('home') }}><LogOut size={17} /></button></div></div>
     </aside>
     <main className="hub-main">
-      <header className="hub-topbar"><div><span className="desktop-breadcrumb">Seu espaço <ChevronRight size={13} /> <strong>Desafios</strong></span><span className="mobile-brand"><Brand /></span></div><div className="topbar-actions"><ThemeToggle /><span className="today-label">{new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}</span><button className="button primary compact global-record" onClick={() => setModal('record')}><Plus size={16} />Adicionar registro</button><span className="mobile-user"><Avatar name={session.name} image={session.image} size="small" /><button className="icon-button" aria-label="Sair" onClick={async () => { await authClient.signOut(); setSession(null) }}><LogOut size={16} /></button></span></div></header>
-      <div className="mobile-challenges"><div className="mobile-challenge-scroll">{challenges.map(item => <button key={item.id} aria-pressed={selected?.id === item.id} className={selected?.id === item.id ? 'selected' : ''} onClick={() => { setTab('feed'); void refresh(item.id) }}><ChallengePicture challenge={item} small /><span className={`challenge-modality-icon ${item.modality}`} role="img" aria-label={item.modality === 'strength' ? 'Musculação' : 'Cardio'} title={item.modality === 'strength' ? 'Musculação' : 'Cardio'}>{item.modality === 'strength' ? <Dumbbell size={16} /> : <Flame size={16} />}</span>{item.name}</button>)}<button onClick={() => setModal('create')}><Plus size={17} />Novo desafio</button><button onClick={() => setModal('join')}><Users size={17} />Entrar com chave</button></div></div>
+      <header className="hub-topbar app-topbar"><div className="app-topbar-title"><button className="icon-button app-menu-button" aria-label="Abrir menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><Menu size={24} /></button><Brand /></div><span className="app-header-label">{view === 'home' ? 'Seu movimento' : view === 'completed' ? 'Sua história' : 'Sua turma'}</span><button className="app-home-button icon-button" aria-label="Voltar ao início" onClick={() => setView('home')}><Avatar name={session.name} image={session.image} size="small" /></button></header>
       <div className="hub-content">
         {notice && <div className="notice" role="status"><Check size={18} />{notice}</div>}
         {error && <div className="error-banner" role="alert">{error}<button onClick={() => void refresh()}>Tentar novamente</button></div>}
-        {selected ? <>
+        {view === 'home' ? <HomeDashboard user={session} challenges={challenges} revision={requestNumber.current} onSelect={id => { setView('challenge'); setTab('feed'); void refresh(id) }} onCreate={() => setModal('create')} /> : view === 'current' || view === 'completed' ? <section className="app-challenge-directory"><p className="eyebrow">{view === 'completed' ? 'CADA DESAFIO DEIXA UMA HISTÓRIA' : 'UM OBJETIVO. UMA TURMA.'}</p><h1>{view === 'completed' ? 'Desafios concluídos' : 'Desafios atuais'}</h1><p>{view === 'completed' ? 'Reviva os treinos, as conquistas e o ranking da turma.' : 'Escolha sua turma e continue de onde parou.'}</p><ChallengeCards completed={view === 'completed'} challenges={challenges.filter(c => view === 'completed' ? c.endDate < todayInBrazil() : c.endDate >= todayInBrazil())} onSelect={id => { setView('challenge'); setTab('feed'); void refresh(id) }} onCreate={() => setModal('create')} /></section> : selected ? <>
           <ChallengeHero challenge={selected} members={members} sessionId={session.id} onEdit={() => setModal('edit')} onMembers={() => setTab('members')} onCopy={() => setNotice('Chave copiada. Compartilhe com sua turma!')} onError={setError} />
           <PremiumPanel key={selected.id} challenge={selected} isOwner={selected.ownerId === session.id} onRefresh={() => void refresh(selected.id)} />
           <div className="challenge-management"><span>{selected.ownerId === session.id ? 'Você administra este desafio.' : 'Você participa deste desafio.'}</span><button onClick={() => { setActionError(''); setChallengeAction({ challenge: selected, kind: selected.ownerId === session.id ? 'delete' : 'leave' }) }}>{selected.ownerId === session.id ? <Trash2 size={16} /> : <LogOut size={16} />}{selected.ownerId === session.id ? 'Excluir desafio' : 'Sair do desafio'}</button></div>
@@ -105,6 +112,8 @@ export default function Page() {
         </> : <div className="welcome"><span className="welcome-icon"><Flame size={42} /></span><p className="eyebrow">COMECE UM MOVIMENTO</p><h1>Seu próximo desafio<br />é melhor em turma.</h1><p>Crie um objetivo, convide seus amigos e transforme cada treino em uma conquista compartilhada.</p><div><button className="button primary" onClick={() => setModal('create')}><Plus size={18} />Criar meu desafio</button><button className="button secondary" onClick={() => setModal('join')}>Tenho uma chave<ArrowRight size={17} /></button></div></div>}
       </div>
     </main>
+    <button className="app-add-record" aria-label="Adicionar registro" onClick={() => setModal('record')}><Plus size={30} /><span>Registrar treino</span></button>
+    {menuOpen && <Dialog title="Seu espaço" onClose={() => setMenuOpen(false)}><nav className="app-nav app-drawer-nav" aria-label="Menu lateral">{([['home','Início',Home],['current','Desafios atuais',Trophy],['completed','Desafios concluídos',History]] as const).map(([target,label,Icon]) => <button key={target} aria-current={view === target ? 'page' : undefined} onClick={() => { setView(target); setMenuOpen(false) }}><Icon size={22} />{label}</button>)}<button onClick={() => { setMenuOpen(false); setModal('create') }}><Plus size={22} />Criar desafio</button><button onClick={() => { setMenuOpen(false); setModal('join') }}><Users size={22} />Entrar com chave</button><button className="app-install-action" onClick={() => { setMenuOpen(false); window.dispatchEvent(new Event('pulso-install-request')) }}><Download size={22} />Instalar aplicativo</button><ThemeToggle /><button onClick={async () => { await authClient.signOut(); setMenuOpen(false); setSession(null); setView('home') }}><LogOut size={22} />Sair da conta</button></nav></Dialog>}
     {(modal === 'create' || (modal === 'edit' && selected)) && <ChallengeEditor premiumEnabled={premiumEnabled} challenge={modal === 'edit' ? selected! : undefined} onClose={() => setModal(null)} onSaved={id => afterAction(modal === 'edit' ? 'Desafio atualizado. A cara da turma ficou ainda melhor.' : 'Desafio criado. Agora é só convidar a turma!', id)} />}
     {modal === 'join' && <JoinDialog onClose={() => setModal(null)} onJoined={id => afterAction('Você está na turma. Vamos nessa!', id)} />}
     {modal === 'record' && <RecordModal challenges={challenges} onClose={() => setModal(null)} onSaved={result => afterAction(result.replaced ? 'Treino de musculação substituído. Continua contando um único check-in nesse dia nos desafios elegíveis.' : result.alreadyPublished ? result.record.modality === 'strength' ? 'Seu check-in de musculação nessa data já estava salvo. Ele conta uma única vez em cada desafio elegível.' : 'Esse cardio já estava salvo. Ele não foi contado duas vezes.' : result.countedChallengeIds.length > 0 ? `Registro salvo e contabilizado em ${result.countedChallengeIds.length} ${result.countedChallengeIds.length === 1 ? 'desafio' : 'desafios'} de ${result.record.modality === 'strength' ? 'musculação' : 'cardio'}.` : 'Registro salvo. Você não tem desafios desta modalidade no período da data informada.')} />}

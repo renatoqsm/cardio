@@ -8,6 +8,27 @@ Para publicar na Cloudflare Workers com banco e fotos no Supabase, siga
 
 URL publicada: https://cardio.renatoqsousam.workers.dev
 
+## Início e navegação
+
+Ao entrar, o Pulso abre o resumo pessoal: check-ins gerais de musculação,
+tempo e distância gerais de cardio e desafios em andamento. Os totais são
+calculados diretamente dos registros pessoais, sem multiplicar um treino
+por seu número de desafios e incluindo o histórico preservado.
+
+O calendário mensal mostra dias com treino, distinguindo cardio e musculação;
+permite navegar entre meses e voltar ao atual. A data de referência é Brasília.
+O menu lateral reúne Início, Desafios atuais (incluindo os que ainda vão começar),
+Criar desafio, Desafios concluídos e entrada com chave. No celular, use o botão
+de menu no topo. O botão flutuante **+** abre o registro global.
+
+A identidade padrão usa verde/preto. A preferência de tema anterior é preservada;
+a troca de tema e a instalação do aplicativo ficam no menu. Os desafios mantêm
+suas abas de feed, ranking e membros. As cobranças/restrições Premium continuam
+desativadas até a configuração financeira estar completa.
+
+`node scripts/test-summary.cjs` executa 11 verificações do resumo autenticado,
+totais únicos, privacidade e calendário mensal contra o ambiente local.
+
 ## Desafios e feed
 
 Cada desafio tem modalidade (Cardio ou Musculação), capa, foto de perfil,
@@ -15,7 +36,7 @@ descrição e abas Feed, Ranking e Membros. A modalidade é escolhida na criaç�
 e preservada ao editar. O administrador personaliza a identidade em
 **Personalizar**.
 
-**Adicionar registro** fica na navegação global, disponível mesmo sem
+**Adicionar registro** fica no botão flutuante **+**, disponível mesmo sem
 participar de desafios. Primeiro você escolhe a modalidade. Cardio pede foto,
 data, minutos, distância e pace/descrição opcionais; Musculação pede foto,
 data e descrição opcional. O formulário mostra todos os desafios elegíveis.

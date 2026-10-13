@@ -28,6 +28,11 @@ export function InstallApp() {
     catch { setHelp(true) }
     finally { setPrompt(null); setBusy(false) }
   }
+  useEffect(() => {
+    const open = () => { if (available) void install() }
+    window.addEventListener('pulso-install-request', open)
+    return () => window.removeEventListener('pulso-install-request', open)
+  }, [available, busy, prompt])
   if (!available) return null
   return <><button className="install-app-button" disabled={busy} onClick={() => void install()}><Download size={17} />{busy ? 'Abrindo instalação…' : 'Instalar aplicativo'}</button>{help && <Dialog title="Instalar o Pulso" onClose={() => setHelp(false)}><p className="editor-intro">Tenha o Pulso na tela inicial, com ícone próprio e abertura como aplicativo.</p>{ios ? <ol className="install-steps"><li>Abra este site no Safari.</li><li>Toque em <Share size={16} /> <strong>Compartilhar</strong>.</li><li>Escolha <strong>Adicionar à Tela de Início</strong> e confirme em <strong>Adicionar</strong>.</li></ol> : android ? <ol className="install-steps"><li>Abra este site no Chrome ou Samsung Internet.</li><li>Abra o menu do navegador (⋮ ou ☰).</li><li>Escolha <strong>Instalar aplicativo</strong> ou <strong>Adicionar à tela inicial</strong> e confirme a instalação.</li></ol> : <ol className="install-steps"><li>Abra este site no Chrome ou Edge.</li><li>Use o ícone de instalação na barra de endereço, ou a opção <strong>Instalar Pulso</strong> no menu do navegador.</li><li>Confirme a instalação.</li></ol>}<p className="muted editor-intro">Você continuará usando sua conta atual. É necessário internet para acessar desafios e publicar treinos.</p><button className="button primary full" onClick={() => setHelp(false)}>Entendi</button></Dialog>}</>
 }
