@@ -95,3 +95,9 @@ body { background: var(--paper); }
 @media(prefers-reduced-motion:reduce) { .app-add-record:hover { transform: none; } }
 body:has(.app-shell) .install-app-button { display: none; }
 @media(display-mode:standalone) { .app-install-action { display: none !important; } }
+.profile-photo-editor { display: grid; justify-items: center; gap: 12px; }
+.profile-photo-editor > label { position: relative; display: grid; justify-items: center; gap: 12px; cursor: pointer; }
+.profile-photo-editor .avatar-large { width: 110px; height: 110px; border-radius: 30px; font-size: 32px; }
+.profile-photo-editor label > span:last-of-type { display: flex; align-items: center; gap: 7px; color: var(--forest); font-size: 13px; }
+.profile-photo-editor input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.profile-photo-editor > button { background: transparent; border: 0; color: var(--soft-ink); font-size: 12px; cursor: pointer; text-decoration: underline; }

@@ -1,8 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Download, Menu, Home, History, ArrowDown, ArrowRight, CalendarDays, Check, ChevronRight, Copy, Crown, Dumbbell, Flame, Image as ImageIcon, LogOut, Plus, Search, Settings2, Timer, Trash2, Trophy, Users, Zap } from 'lucide-react'
+import { UserRound, Download, Menu, Home, History, ArrowDown, ArrowRight, CalendarDays, Check, ChevronRight, Copy, Crown, Dumbbell, Flame, Image as ImageIcon, LogOut, Plus, Search, Settings2, Timer, Trash2, Trophy, Users, Zap } from 'lucide-react'
 import { HomeDashboard, ChallengeCards, todayInBrazil } from '@/components/home-dashboard'
+import { ProfileEditor } from '@/components/profile-editor'
 import { PremiumPanel } from '@/components/premium-panel'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { authClient } from '@/lib/auth-client'
@@ -29,7 +30,7 @@ export default function Page() {
   const [session, setSession] = useState<{ id: string; name: string; image?: string | null } | null>(null)
   const [challenges, setChallenges] = useState<Challenge[]>([]), [selected, setSelected] = useState<Challenge | null>(null)
   const [members, setMembers] = useState<Member[]>([]), [feed, setFeed] = useState<FeedItem[]>([])
-  const [tab, setTab] = useState<Tab>('feed'), [modal, setModal] = useState<'create' | 'edit' | 'join' | 'record' | null>(null)
+  const [tab, setTab] = useState<Tab>('feed'), [modal, setModal] = useState<'create' | 'edit' | 'join' | 'record' | 'profile' | null>(null)
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
   const [loading, setLoading] = useState(true), [refreshing, setRefreshing] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [challengeAction, setChallengeAction] = useState<{ challenge: Challenge; kind: 'delete' | 'leave' } | null>(null)
@@ -88,6 +89,7 @@ export default function Page() {
         <button onClick={() => setModal('create')}><Plus size={21} />Criar desafio</button>
         <button aria-current={view === 'completed' ? 'page' : undefined} onClick={() => setView('completed')}><History size={21} />Desafios concluídos</button>
         <button onClick={() => setModal('join')}><Users size={21} />Entrar com chave</button>
+        <button onClick={() => setModal('profile')}><UserRound size={21} />Meu perfil</button>
       </nav>
       <div className="sidebar-heading"><span>SUA TURMA</span></div>
       <nav className="challenge-nav" aria-label="Seus desafios">{challenges.filter(c => c.endDate >= todayInBrazil()).map(item => <button key={item.id} aria-current={view === 'challenge' && selected?.id === item.id ? 'page' : undefined} className={`challenge-nav-item ${view === 'challenge' && selected?.id === item.id ? 'selected' : ''}`} onClick={() => { setView('challenge'); setTab('feed'); void refresh(item.id) }}><ChallengePicture challenge={item} small /><span><strong>{item.name}</strong><small>{item.modality === 'strength' ? 'Musculação' : 'Cardio'}</small></span><ChevronRight size={15} /></button>)}</nav>
@@ -113,7 +115,8 @@ export default function Page() {
       </div>
     </main>
     <button className="app-add-record" aria-label="Adicionar registro" onClick={() => setModal('record')}><Plus size={30} /><span>Registrar treino</span></button>
-    {menuOpen && <Dialog title="Seu espaço" onClose={() => setMenuOpen(false)}><nav className="app-nav app-drawer-nav" aria-label="Menu lateral">{([['home','Início',Home],['current','Desafios atuais',Trophy],['completed','Desafios concluídos',History]] as const).map(([target,label,Icon]) => <button key={target} aria-current={view === target ? 'page' : undefined} onClick={() => { setView(target); setMenuOpen(false) }}><Icon size={22} />{label}</button>)}<button onClick={() => { setMenuOpen(false); setModal('create') }}><Plus size={22} />Criar desafio</button><button onClick={() => { setMenuOpen(false); setModal('join') }}><Users size={22} />Entrar com chave</button><button className="app-install-action" onClick={() => { setMenuOpen(false); window.dispatchEvent(new Event('pulso-install-request')) }}><Download size={22} />Instalar aplicativo</button><ThemeToggle /><button onClick={async () => { await authClient.signOut(); setMenuOpen(false); setSession(null); setView('home') }}><LogOut size={22} />Sair da conta</button></nav></Dialog>}
+    {menuOpen && <Dialog title="Seu espaço" onClose={() => setMenuOpen(false)}><nav className="app-nav app-drawer-nav" aria-label="Menu lateral">{([['home','Início',Home],['current','Desafios atuais',Trophy],['completed','Desafios concluídos',History]] as const).map(([target,label,Icon]) => <button key={target} aria-current={view === target ? 'page' : undefined} onClick={() => { setView(target); setMenuOpen(false) }}><Icon size={22} />{label}</button>)}<button onClick={() => { setMenuOpen(false); setModal('create') }}><Plus size={22} />Criar desafio</button><button onClick={() => { setMenuOpen(false); setModal('join') }}><Users size={22} />Entrar com chave</button><button onClick={() => { setMenuOpen(false); setModal('profile') }}><UserRound size={22} />Meu perfil</button><button className="app-install-action" onClick={() => { setMenuOpen(false); window.dispatchEvent(new Event('pulso-install-request')) }}><Download size={22} />Instalar aplicativo</button><ThemeToggle /><button onClick={async () => { await authClient.signOut(); setMenuOpen(false); setSession(null); setView('home') }}><LogOut size={22} />Sair da conta</button></nav></Dialog>}
+    {modal === 'profile' && <ProfileEditor onClose={() => setModal(null)} onSaved={profile => { setSession({ id: profile.id, name: profile.name, image: profile.image }); afterAction('Perfil atualizado.'); }} />}
     {(modal === 'create' || (modal === 'edit' && selected)) && <ChallengeEditor premiumEnabled={premiumEnabled} challenge={modal === 'edit' ? selected! : undefined} onClose={() => setModal(null)} onSaved={id => afterAction(modal === 'edit' ? 'Desafio atualizado. A cara da turma ficou ainda melhor.' : 'Desafio criado. Agora é só convidar a turma!', id)} />}
     {modal === 'join' && <JoinDialog onClose={() => setModal(null)} onJoined={id => afterAction('Você está na turma. Vamos nessa!', id)} />}
     {modal === 'record' && <RecordModal challenges={challenges} onClose={() => setModal(null)} onSaved={result => afterAction(result.replaced ? 'Treino de musculação substituído. Continua contando um único check-in nesse dia nos desafios elegíveis.' : result.alreadyPublished ? result.record.modality === 'strength' ? 'Seu check-in de musculação nessa data já estava salvo. Ele conta uma única vez em cada desafio elegível.' : 'Esse cardio já estava salvo. Ele não foi contado duas vezes.' : result.countedChallengeIds.length > 0 ? `Registro salvo e contabilizado em ${result.countedChallengeIds.length} ${result.countedChallengeIds.length === 1 ? 'desafio' : 'desafios'} de ${result.record.modality === 'strength' ? 'musculação' : 'cardio'}.` : 'Registro salvo. Você não tem desafios desta modalidade no período da data informada.')} />}

@@ -29,6 +29,11 @@ export const GET = withDatabase(async (_request: Request, context: { params: Pro
       JOIN challenge_member viewer ON viewer."challengeId" = c.id
       WHERE c."ownerId" = ${owner} AND viewer."userId" = ${session.user.id}
         AND (c."profilePathname" = ${pathname} OR c."coverPathname" = ${pathname})
+      UNION ALL
+      SELECT 1 FROM "user" u
+      JOIN challenge_member author ON author."userId"=u.id
+      JOIN challenge_member viewer ON viewer."challengeId"=author."challengeId"
+      WHERE u.id=${owner} AND u.image=${pathname} AND viewer."userId"=${session.user.id}
       LIMIT 1
     `)
     if (!access.rowCount) return new NextResponse(null, { status: 404 })

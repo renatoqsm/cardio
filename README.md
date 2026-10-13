@@ -29,6 +29,20 @@ desativadas até a configuração financeira estar completa.
 `node scripts/test-summary.cjs` executa 11 verificações do resumo autenticado,
 totais únicos, privacidade e calendário mensal contra o ambiente local.
 
+## Perfil
+
+No menu lateral, **Meu perfil** permite editar nome, foto, idade (anos) e peso
+(kg, aceitando vírgula ou ponto). Idade e peso são opcionais e ficam em uma tabela
+privada separada do nome/avatar públicos. A API retorna somente o perfil da conta
+autenticada. Nome e foto são atualizados na home, no feed e no ranking.
+
+A foto aceita câmera ou galeria (até 8 MB); mantém armazenamento privado no
+Supabase. Apenas o dono e participantes de desafios compartilhados podem vê-la.
+Remover a foto retorna ao avatar com iniciais, sem apagar imagens eventualmente
+utilizadas em registros antigos. Apagar os campos opcionais remove idade/peso.
+`node scripts/test-profile.cjs` executa 18 verificações locais de persistência,
+validação, autorização e privacidade.
+
 ## Desafios e feed
 
 Cada desafio tem modalidade (Cardio ou Musculação), capa, foto de perfil,
