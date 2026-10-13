@@ -20,6 +20,10 @@ export function withDatabase<Args extends unknown[]>(handler: (...args: Args) =>
     const cloudflare = typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers'
     const bindings = cloudflare ? getCloudflareContext().env as { HYPERDRIVE?: { connectionString: string } } : undefined
     const pool = new Pool({ connectionString: bindings?.HYPERDRIVE?.connectionString ?? process.env.DATABASE_URL, max: 2, connectionTimeoutMillis: 10000 })
+    // Handle idle and late socket errors without turning a closed connection into an unhandled rejection.
+    const logConnectionError = (error: Error & { code?: string }) => console.error('Database connection error:', error.code ?? 'CONNECTION_LOST')
+    pool.on('error', logConnectionError)
+    pool.on('connect', client => client.on('error', logConnectionError))
     return requests.run({ pool, db: createDatabase(pool) }, async () => {
       try {
         return await handler(...args)

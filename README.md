@@ -29,6 +29,16 @@ desativadas até a configuração financeira estar completa.
 `node scripts/test-summary.cjs` executa 11 verificações do resumo autenticado,
 totais únicos, privacidade e calendário mensal contra o ambiente local.
 
+## Excluir registro
+
+No próprio registro do feed, **Excluir registro** pede confirmação e permite
+remover apenas treinos da conta autenticada. A exclusão remove o treino e suas
+associações aos desafios na mesma transação. Feed, ranking, totais gerais e
+calendário são recalculados dos registros restantes. Excluir musculação libera
+novo check-in na data. Fotos eventualmente usadas no perfil/capa são preservadas.
+`node scripts/test-delete-record.cjs` executa 13 verificações locais de exclusão,
+autorização, pontuação em múltiplos desafios e totais pessoais.
+
 ## Compartilhar treino
 
 No próprio registro do feed, **Compartilhar no Instagram** gera uma imagem PNG

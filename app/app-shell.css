@@ -104,3 +104,6 @@ body:has(.app-shell) .install-app-button { display: none; }
 .share-checkin-button { display: flex; justify-content: center; align-items: center; gap: 9px; width: calc(100% - 36px); margin: 0 18px 18px; min-height: 44px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-raised); color: var(--forest); font-weight: 650; font-size: 12px; cursor: pointer; }
 .story-preview { display: block; width: min(100%,230px); height: auto; border-radius: 15px; margin: 12px auto 20px; }
 .story-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.record-card-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 18px 18px; }
+.record-card-actions .share-checkin-button { width: auto; flex: 1 1 180px; margin: 0; padding: 10px; }
+.delete-record-button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; border: 1px solid var(--line); background: transparent; color: var(--soft-ink); border-radius: 13px; padding: 10px 14px; font-size: 12px; cursor: pointer; }

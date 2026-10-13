@@ -21,7 +21,10 @@ async function currentUser() {
 }
 function failure(error: unknown) {
   if (error instanceof RequestError || error instanceof BillingError || error instanceof AsaasError) return NextResponse.json({ error: error.message }, { status: error.status })
-  console.error('Challenge request failed')
+  const cause = error as { code?: string; message?: string; cause?: { code?: string; message?: string } }
+  const code = cause.code ?? cause.cause?.code ?? 'REQUEST_FAILED'
+  console.error('Challenge request failed:', code)
+  if (code === '58000') console.error('Database system diagnostic:', (cause.cause?.message ?? cause.message ?? '').replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[DATABASE_URL]').slice(0, 240))
   return NextResponse.json({ error: 'Não foi possível concluir a ação. Tente novamente.' }, { status: 500 })
 }
 async function ownedPhoto(value: unknown, owner: string) {
@@ -123,7 +126,6 @@ export const POST = withDatabase(async (request: Request) => {
       return NextResponse.json({ challenge: created })
     }
     if (body.action === 'record') {
-      return await db.transaction(async db => {
       const modality = body.modality ?? 'cardio'
       if (modality !== 'cardio' && modality !== 'strength') throw new RequestError('Escolha Cardio ou Musculação.')
       let values
@@ -139,6 +141,7 @@ export const POST = withDatabase(async (request: Request) => {
       const priorPublication = (await db.select({id:cardioRecord.id}).from(cardioRecord).where(and(eq(cardioRecord.userId,me.id),eq(cardioRecord.submissionKey,submissionKey),eq(cardioRecord.modality,modality),eq(cardioRecord.recordDate,body.recordDate))))[0]
       if (billingEnabled() && modality === 'cardio' && destinations.length === 0 && !priorPublication) throw new RequestError('Para registrar cardio, participe de um desafio de cardio com Premium ativo e período compatível.',403)
       const record = { id: id(), challengeId: null, userId: me.id, modality, submissionKey, captureDay: capture.captureDay, gestureId: capture.gestureId, recordDate: body.recordDate, ...values, activityType: modality === 'strength' ? 'Musculação' : typeof body.activityType === 'string' ? body.activityType.slice(0, 40) : 'Cardio', proofPathname: pathname, description: typeof body.description === 'string' ? body.description.trim().slice(0, 1500) || null : null, createdAt: new Date() }
+      return await db.transaction(async db => {
       const confirmation = (existing: typeof cardioRecord.$inferSelect) => NextResponse.json({
         code: 'STRENGTH_CHECKIN_EXISTS', error: 'Você já registrou um treino de musculação nessa data. Deseja substituí-lo?',
         existingRecord: { id: existing.id, submissionKey: existing.submissionKey, recordDate: existing.recordDate },
