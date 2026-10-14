@@ -34,6 +34,19 @@
     "BILLING_ENABLED": "false",
     "ASAAS_ENVIRONMENT": "production",
     "VAPID_PUBLIC_KEY": "BLRd7P-zVWSPdU5z_rFrClIbHUBj2W0rnBbe1kQn7L6GzDn-Lm9X6uITRzUZ_yLDMSAo1ONiT-06u1Mxr3lA39g",
-    "VAPID_SUBJECT": "https://cardio.renatoqsousam.workers.dev"
-  }
+    "VAPID_SUBJECT": "https://cardio.renatoqsousam.workers.dev",
+    "SITE_URL": "https://www.desafiopulso.online"
+  },
+  "routes": [
+    {
+      "pattern": "www.desafiopulso.online",
+      "custom_domain": true,
+      "zone_id": "2d7f4062d64e33f1b80f5d1171ef25af"
+    },
+    {
+      "pattern": "desafiopulso.online",
+      "custom_domain": true,
+      "zone_id": "2d7f4062d64e33f1b80f5d1171ef25af"
+    }
+  ]
 }

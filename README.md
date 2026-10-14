@@ -306,3 +306,11 @@ o app. As instalações no endereço antigo continuam funcionando; a instalaçã
 pelo domínio novo precisa ser feita nesse novo endereço.
 
 Validação das origens: `node scripts/test-domain-addresses.cjs`.
+
+A zona `desafiopulso.online` foi ativada na Cloudflare e os dois Custom Domains
+foram associados ao Worker `cardio`. As rotas estão declaradas em `wrangler.jsonc`
+para preservar as associações nas próximas publicações. `SITE_URL` define
+`https://www.desafiopulso.online` como endereço canônico; o endereço workers.dev
+continua disponível para instalações e sessões existentes. O acesso de rede do
+ambiente de desenvolvimento precisa permitir os dois novos hosts para testes
+HTTPS diretos, independentemente da configuração do DNS público.
