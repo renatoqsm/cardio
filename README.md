@@ -264,3 +264,22 @@ Para testar localmente, use chaves VAPID de desenvolvimento e defina
 Execute `node scripts/test-achievements-notifications.cjs`,
 `node scripts/test-push-delivery.cjs` e `node scripts/test-push-worker.cjs`.
 Os testes de entrega usam transporte simulado e banco isolado; não exigem um celular.
+
+### Site público e aplicativo instalado
+
+`/` apresenta o Pulso para divulgação, com recursos, prévia ilustrativa, passo a
+passo, instalação e dúvidas frequentes. `/app` abre o login/cadastro ou a home da
+conta conectada. O site público não consulta os dados privados dos usuários.
+
+O manifesto inicia novas instalações em `/app` e preserva a identidade `id: /`
+e o escopo `/`. Instalações antigas que ainda iniciam em `/` são encaminhadas
+antes da apresentação. Links antigos de convite, desafio, notificação e retorno
+do checkout também redirecionam para `/app`, preservando os parâmetros. Novos
+convites já apontam para `/app`; URLs de push continuam compatíveis com versões
+anteriores do service worker.
+
+Os botões “Começar agora” e “Acessar e instalar” abrem, respectivamente,
+`/app?signup=1` e `/app?install=1`. O segundo mostra as instruções de instalação;
+a confirmação nativa permanece dependente do navegador e da escolha do usuário.
+O site tem metadados para busca e compartilhamento, enquanto `/app` usa `noindex`.
+Validação local: `node scripts/test-app-entry.cjs` com o servidor iniciado.

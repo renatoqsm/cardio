@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import './themes.css'
 import './app-shell.css'
+import { appEntryBootstrap } from '@/lib/app-entry'
 import { themeBootstrap } from '@/lib/theme'
 import { InstallApp } from '@/components/install-app'
 
@@ -19,5 +20,5 @@ export const viewport: Viewport = {
 }
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="pt-BR" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: themeBootstrap }} /></head><body className="antialiased">{children}<InstallApp /></body></html>
+  return <html lang="pt-BR" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: appEntryBootstrap }} /><script dangerouslySetInnerHTML={{ __html: themeBootstrap }} /></head><body className="antialiased">{children}<InstallApp /></body></html>
 }

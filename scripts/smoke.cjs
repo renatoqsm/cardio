@@ -28,10 +28,12 @@ async function signup(name) {
   return user;
 }
 async function main() {
-  const page = await request('/');
+  const site = await request('/');
+  check(site.ok && (await site.text()).includes('Seu treino.'), 'Public presentation renders without login');
+  const page = await request('/app');
   check(page.ok && (await page.text()).includes('Preparando seu espaço'), 'Application shell rendered');
   const manifest = await (await request('/manifest.webmanifest')).json();
-  check(manifest.display === 'standalone' && manifest.start_url === '/' && manifest.scope === '/', 'Install manifest opens app in standalone mode');
+  check(manifest.display === 'standalone' && manifest.start_url === '/app' && manifest.scope === '/', 'Install manifest opens app in standalone mode');
   for (const icon of manifest.icons) {
     const image = await request(icon.src);
     check(image.ok && image.headers.get('content-type')?.includes('image/png'), 'Install icon available: ' + icon.sizes + ' ' + icon.purpose);

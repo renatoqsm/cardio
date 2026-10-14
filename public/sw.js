@@ -1,5 +1,5 @@
 // Only public offline assets are cached. Auth, feeds and photos always use the network.
-const CACHE = 'pulso-public-v4';
+const CACHE = 'pulso-public-v5';
 const ASSETS = ['/offline.html', '/icons/pulso-192.png', '/icons/pulso-512.png', '/icons/pulso-maskable-512.png', '/icons/pulso-apple-180.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -46,7 +46,7 @@ self.addEventListener('push', event => {
     const account = await accountStore('readonly', store => store.get('userId'));
     if (account !== data.recipient) return;
     const url = new URL(data.url || '/', self.location.origin);
-    if (url.origin !== self.location.origin || url.pathname !== '/') return;
+    if (url.origin !== self.location.origin || !['/', '/app'].includes(url.pathname)) return;
     await self.registration.showNotification(data.title || 'Pulso', {
       body: data.body, icon: '/icons/pulso-192.png', badge: '/icons/pulso-192.png',
       tag: data.tag, renotify: false, data: { url: url.href, recipient: data.recipient },
@@ -57,7 +57,7 @@ self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil((async () => {
     const account = await accountStore('readonly', store => store.get('userId'));
-    const target = account === event.notification.data?.recipient ? event.notification.data.url : self.location.origin;
+    const target = account === event.notification.data?.recipient ? event.notification.data.url : self.location.origin + '/app';
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = windows.find(client => new URL(client.url).origin === self.location.origin);
     if (existing) { await existing.navigate(target); await existing.focus(); }
