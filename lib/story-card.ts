@@ -45,7 +45,7 @@ export async function createStoryCard(item: FeedItem) {
     metrics.forEach(([label,value],i)=>{const x=64+i*320;ctx.fillStyle='#a7b8a9';ctx.font='22px system-ui';ctx.fillText(label,x,y-24);ctx.fillStyle='#f3f6ee';ctx.font='bold 45px system-ui';ctx.fillText(value,x,y+30,300)})
   }
   y += 88; ctx.font = `${font}px system-ui`; ctx.fillStyle = '#d3dfd3'; description.forEach((line,i)=>ctx.fillText(line,64,y+i*(font+9)))
-  ctx.fillStyle='#c7ff47';ctx.font='bold 25px system-ui';ctx.fillText('SEU RITMO. SUA TURMA.',64,1824);ctx.fillStyle='#a7b8a9';ctx.font='22px system-ui';ctx.fillText('cardio.renatoqsousam.workers.dev',64,1868)
+  ctx.fillStyle='#c7ff47';ctx.font='bold 25px system-ui';ctx.fillText('SEU RITMO. SUA TURMA.',64,1824);ctx.fillStyle='#a7b8a9';ctx.font='22px system-ui';ctx.fillText(window.location.host,64,1868,940)
   const blob = await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('Não foi possível gerar a imagem.')),'image/png'))
   return new File([blob],`pulso-${item.modality}-${item.recordDate}.png`,{type:'image/png'})
 }

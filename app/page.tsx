@@ -1,3 +1,4 @@
+import { publicSiteOrigin } from '@/lib/site-address'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -5,7 +6,7 @@ import { ArrowRight, Award, Bell, Camera, Check, ChevronRight, Dumbbell, Flame, 
 import { Brand } from '@/components/ui'
 import './landing.css'
 
-const origin = 'https://cardio.renatoqsousam.workers.dev'
+const origin = publicSiteOrigin()
 export const metadata: Metadata = {
   title: 'Pulso — Seu treino. Sua turma. Seu ritmo.',
   description: 'Transforme seus treinos em desafios com amigos. Musculação, cardio, metas semanais e conquistas em um aplicativo que você instala direto no celular.',

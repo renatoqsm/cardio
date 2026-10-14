@@ -283,3 +283,26 @@ Os botões “Começar agora” e “Acessar e instalar” abrem, respectivament
 a confirmação nativa permanece dependente do navegador e da escolha do usuário.
 O site tem metadados para busca e compartilhamento, enquanto `/app` usa `noindex`.
 Validação local: `node scripts/test-app-entry.cjs` com o servidor iniciado.
+
+### Domínio próprio preparado
+
+O login aceita somente o endereço original e os hosts `www.desafiopulso.online`
+e `desafiopulso.online`, além do endereço local configurado no desenvolvimento.
+Better Auth resolve a base conforme o host aprovado da requisição, sem confiar
+em `x-forwarded-host`. O endereço original permanece disponível para instalações
+existentes. Contas e treinos usam o mesmo banco nos diferentes endereços.
+
+Para ativar, adicione `desafiopulso.online` como zona gratuita na Cloudflare,
+confira os registros DNS importados e use os dois nameservers fornecidos pela
+Cloudflare nas configurações do domínio na Homehost. Após a zona ficar ativa,
+associe `www.desafiopulso.online` (e, se desejado, o domínio sem www) ao Worker
+`cardio` como Custom Domain. Não basta apontar um CNAME para o endereço workers.dev.
+
+Depois de validar DNS, HTTPS e login, registre os Custom Domains em `wrangler.jsonc`
+e configure `SITE_URL=https://www.desafiopulso.online` para os links canônicos e
+metadados. Até essa ativação, o site mantém o endereço público já funcional.
+As imagens de compartilhamento mostram o hostname em que o usuário está usando
+o app. As instalações no endereço antigo continuam funcionando; a instalação
+pelo domínio novo precisa ser feita nesse novo endereço.
+
+Validação das origens: `node scripts/test-domain-addresses.cjs`.
